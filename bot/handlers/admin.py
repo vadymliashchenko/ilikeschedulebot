@@ -21,6 +21,34 @@ async def cmd_admin(message: Message, state: FSMContext) -> None:
     await message.answer("Керування складом хореографів:", reply_markup=keyboards.admin_menu_keyboard())
 
 
+@router.message(Command("links"))
+async def cmd_links(message: Message, conn: aiosqlite.Connection) -> None:
+    links = await db.get_all_links(conn)
+    if not links:
+        await message.answer("Ще нікого не прив'язано до Telegram-акаунтів.")
+        return
+    lines = ["Прив'язки хореограф → Telegram ID:"]
+    kb_rows = []
+    for row in links:
+        lines.append(f"— {row['choreographer']} → {row['telegram_user_id']}")
+        kb_rows.append(
+            [InlineKeyboardButton(
+                text=f"🔓 Скинути: {row['choreographer']}",
+                callback_data=f"unlink:{row['choreographer']}",
+            )]
+        )
+    kb = InlineKeyboardMarkup(inline_keyboard=kb_rows)
+    await message.answer("\n".join(lines), reply_markup=kb)
+
+
+@router.callback_query(F.data.startswith("unlink:"))
+async def cb_unlink(callback: CallbackQuery, conn: aiosqlite.Connection) -> None:
+    name = callback.data.split(":", 1)[1]
+    await db.unlink_choreographer(conn, name)
+    await callback.answer(f"Прив'язку {name} скинуто.")
+    await callback.message.edit_text(f"Прив'язку для {name} скинуто. Наступний, хто натисне її кнопку, буде прив'язаний заново.")
+
+
 @router.callback_query(F.data == "admin:add")
 async def admin_add_start(callback: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(states.AddGroup.choosing_choreographer)

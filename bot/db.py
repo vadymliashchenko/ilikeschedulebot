@@ -256,6 +256,20 @@ async def is_choreographer_linked(conn: aiosqlite.Connection, choreographer: str
     return (await cur.fetchone()) is not None
 
 
+async def get_all_links(conn: aiosqlite.Connection) -> list[aiosqlite.Row]:
+    cur = await conn.execute(
+        "SELECT choreographer, telegram_user_id FROM choreographer_links ORDER BY choreographer"
+    )
+    return await cur.fetchall()
+
+
+async def unlink_choreographer(conn: aiosqlite.Connection, choreographer: str) -> None:
+    await conn.execute(
+        "DELETE FROM choreographer_links WHERE choreographer = ?", (choreographer,)
+    )
+    await conn.commit()
+
+
 async def count_active_groups_at_slot(
     conn: aiosqlite.Connection, day_pattern: str, time: str
 ) -> int:
