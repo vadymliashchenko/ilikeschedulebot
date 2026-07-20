@@ -22,31 +22,45 @@ def _level_suffix(level: Optional[int]) -> str:
 
 
 def _build_rows(lesson_date: dt.date, locked_groups, pollable_groups, responses_by_group,
-                client_version: bool) -> tuple[list[str], set[str]]:
+                client_version: bool) -> tuple[list[tuple[str, str]], set[str]]:
     entries = []
     used_emoji: set[str] = set()
 
     for g in locked_groups:
-        entries.append((g["time"], f"{g['time']} — {g['choreographer']} — {g['style']}{_level_suffix(g['level'])} — 🔒 закрита"))
+        head = f"<b>{g['time']} — {g['choreographer']}</b>"
+        line = f"{head} — {g['style']}{_level_suffix(g['level'])} — 🔒 закрита"
+        entries.append((g["time"], line))
         used_emoji.add("🔒")
 
     for g in pollable_groups:
         status_key = responses_by_group.get(g["id"])
+        head = f"<b>{g['time']} — {g['choreographer']}</b>"
         style_part = f"{g['style']}{_level_suffix(g['level'])}"
         if status_key is None:
             used_emoji.add("⚠️")
             if client_version:
-                line = f"{g['time']} — {g['choreographer']} — {style_part}"
+                line = f"{head} — {style_part}"
             else:
-                line = f"{g['time']} — {g['choreographer']} — {style_part} — ⚠️ немає відповіді"
+                line = f"{head} — {style_part} — ⚠️ немає відповіді"
         else:
             info = config.STATUSES[status_key]
             used_emoji.add(info["emoji"])
-            line = f"{g['time']} — {g['choreographer']} — {style_part} — {info['emoji']} {info['label']}"
+            line = f"{head} — {style_part} — {info['emoji']} {info['label']}"
         entries.append((g["time"], line))
 
     entries.sort(key=lambda x: x[0])
-    return [line for _, line in entries], used_emoji
+    return entries, used_emoji
+
+
+def _join_with_time_gaps(entries: list[tuple[str, str]]) -> str:
+    lines = []
+    prev_time = None
+    for time, line in entries:
+        if prev_time is not None and time != prev_time:
+            lines.append("")
+        lines.append(line)
+        prev_time = time
+    return "\n".join(lines)
 
 
 def _build_legend(used_emoji: set[str]) -> str:
@@ -59,19 +73,19 @@ def _build_legend(used_emoji: set[str]) -> str:
 
 def build_internal_table(lesson_date: dt.date, locked_groups, pollable_groups,
                           responses_by_group: dict[int, str]) -> str:
-    rows, used_emoji = _build_rows(lesson_date, locked_groups, pollable_groups,
-                                    responses_by_group, client_version=False)
+    entries, used_emoji = _build_rows(lesson_date, locked_groups, pollable_groups,
+                                       responses_by_group, client_version=False)
     header = f"📋 Розклад на завтра — {_format_date(lesson_date)}"
-    body = "\n".join(rows) if rows else "На завтра активних груп немає."
+    body = _join_with_time_gaps(entries) if entries else "На завтра активних груп немає."
     legend = _build_legend(used_emoji)
     return f"{header}\n\n{body}\n\n{legend}"
 
 
 def build_client_table(lesson_date: dt.date, locked_groups, pollable_groups,
                         responses_by_group: dict[int, str]) -> str:
-    rows, used_emoji = _build_rows(lesson_date, locked_groups, pollable_groups,
-                                    responses_by_group, client_version=True)
+    entries, used_emoji = _build_rows(lesson_date, locked_groups, pollable_groups,
+                                       responses_by_group, client_version=True)
     header = f"📋 Розклад на завтра — {_format_date(lesson_date)}"
-    body = "\n".join(rows) if rows else "На завтра активних груп немає."
+    body = _join_with_time_gaps(entries) if entries else "На завтра активних груп немає."
     legend = _build_legend(used_emoji)
     return f"{header}\n\n{body}\n\n{legend}"
