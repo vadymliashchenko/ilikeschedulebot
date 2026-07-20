@@ -11,9 +11,10 @@ from bot import config, db, keyboards, table_builder
 
 logger = logging.getLogger(__name__)
 
-# Дні тижня, коли ввечері запускається опитування (питаємо за наступний робочий день):
-# нд -> пн, пн -> вт, вт -> ср, ср -> чт, чт -> пт
-POLL_TRIGGER_DAYS = "sun,mon,tue,wed,thu"
+# Дні тижня, коли ввечері запускається опитування (питаємо за наступний день):
+# нд->пн, пн->вт, вт->ср, ср->чт, чт->пт, пт->сб (якщо є заняття).
+# Субота ввечері не тригерить - неділя фактично завжди без занять.
+POLL_TRIGGER_DAYS = "sun,mon,tue,wed,thu,fri"
 
 
 def _tomorrow() -> dt.date:
@@ -52,6 +53,10 @@ async def job_final_table(bot: Bot, conn: aiosqlite.Connection) -> None:
     lesson_date = _tomorrow()
     locked = await db.get_locked_groups_for_date(conn, lesson_date)
     pollable = await db.get_pollable_groups_for_date(conn, lesson_date)
+
+    if not locked and not pollable:
+        logger.info("No groups scheduled for %s, skipping table", lesson_date)
+        return
 
     responses_by_group: dict[int, str] = {}
     missing_choreographers: set[str] = set()
