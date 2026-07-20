@@ -59,12 +59,12 @@ def _group_by_time(entries: list[tuple[str, str]]) -> str:
     for time, line in entries:
         if time != current_time:
             if current_lines:
-                blocks.append(f"<b>{current_time}</b>\n" + "\n".join(current_lines))
+                blocks.append(f"<b>{current_time}</b>\n\n" + "\n".join(current_lines))
             current_time = time
             current_lines = []
         current_lines.append(line)
     if current_lines:
-        blocks.append(f"<b>{current_time}</b>\n" + "\n".join(current_lines))
+        blocks.append(f"<b>{current_time}</b>\n\n" + "\n".join(current_lines))
     return "\n\n".join(blocks)
 
 
