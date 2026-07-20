@@ -256,6 +256,18 @@ async def is_choreographer_linked(conn: aiosqlite.Connection, choreographer: str
     return (await cur.fetchone()) is not None
 
 
+async def count_active_groups_at_slot(
+    conn: aiosqlite.Connection, day_pattern: str, time: str
+) -> int:
+    cur = await conn.execute(
+        """SELECT COUNT(*) AS c FROM groups
+           WHERE active = 1 AND day_pattern = ? AND time = ?""",
+        (day_pattern, time),
+    )
+    row = await cur.fetchone()
+    return row["c"]
+
+
 async def add_group(
     conn: aiosqlite.Connection,
     choreographer: str,

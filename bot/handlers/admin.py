@@ -83,6 +83,17 @@ async def admin_add_date(message: Message, state: FSMContext, conn: aiosqlite.Co
             return
 
     data = await state.get_data()
+
+    existing = await db.count_active_groups_at_slot(conn, data["pattern"], data["time"])
+    if existing >= config.MAX_HALLS:
+        await state.clear()
+        await message.answer(
+            f"Не можу додати: о {data['time']} у цей день вже {existing} занять, "
+            f"а залів усього {config.MAX_HALLS}. Спершу приберіть чиюсь групу цього часу "
+            f"через ➖, або оберіть інший час."
+        )
+        return
+
     await db.add_group(
         conn, data["choreographer"], data["style"], data["time"], data["pattern"],
         active_since.isoformat(),

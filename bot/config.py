@@ -66,6 +66,7 @@ LEVEL_LABELS = {
 }
 
 HALLS = ["white", "blue", "purple", "green", "pink"]
+MAX_HALLS = len(HALLS)
 
 # Статуси опитування: key -> (текст кнопки, підпис у таблиці, емодзі, можна доєднатись)
 # can_join: True / False / "mk" (лише майстер-клас) / "other_group" (відміна, інша група)
