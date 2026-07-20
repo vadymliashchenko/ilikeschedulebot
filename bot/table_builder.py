@@ -18,7 +18,7 @@ def _format_date(d: dt.date) -> str:
 def _level_suffix(level: Optional[int]) -> str:
     if level is None:
         return ""
-    return f", {config.LEVEL_LABELS.get(level, '')}"
+    return f" {'★' * level}"
 
 
 def _build_rows(lesson_date: dt.date, locked_groups, pollable_groups, responses_by_group,

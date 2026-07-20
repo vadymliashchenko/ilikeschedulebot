@@ -59,12 +59,6 @@ STYLES = [
     "Waacking",
 ]
 
-LEVEL_LABELS = {
-    1: "початковий рівень",
-    2: "середній рівень",
-    3: "просунутий рівень",
-}
-
 HALLS = ["white", "blue", "purple", "green", "pink"]
 MAX_HALLS = len(HALLS)
 
