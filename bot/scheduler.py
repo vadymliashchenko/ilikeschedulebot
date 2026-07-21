@@ -122,24 +122,26 @@ def setup_scheduler(bot: Bot, conn: aiosqlite.Connection) -> AsyncIOScheduler:
     rem_h, rem_m = config.REMINDER_TIME.split(":")
     table_h, table_m = config.TABLE_TIME.split(":")
 
+    # misfire_grace_time дозволяє джобі все одно спрацювати, якщо процес
+    # перезапускався (деплой) саме в момент тригера - до години запізнення.
     scheduler.add_job(
         job_start_poll, CronTrigger(day_of_week=POLL_TRIGGER_DAYS, hour=poll_h, minute=poll_m,
                                      timezone=config.TZ),
-        args=(bot, conn), id="start_poll", replace_existing=True,
+        args=(bot, conn), id="start_poll", replace_existing=True, misfire_grace_time=3600,
     )
     scheduler.add_job(
         job_reminder, CronTrigger(day_of_week=POLL_TRIGGER_DAYS, hour=rem_h, minute=rem_m,
                                    timezone=config.TZ),
-        args=(bot, conn), id="reminder", replace_existing=True,
+        args=(bot, conn), id="reminder", replace_existing=True, misfire_grace_time=3600,
     )
     scheduler.add_job(
         job_final_table, CronTrigger(day_of_week=POLL_TRIGGER_DAYS, hour=table_h, minute=table_m,
                                       timezone=config.TZ),
-        args=(bot, conn), id="final_table", replace_existing=True,
+        args=(bot, conn), id="final_table", replace_existing=True, misfire_grace_time=3600,
     )
     scheduler.add_job(
         job_monthly_reconciliation, CronTrigger(day="last", hour=23, minute=0, timezone=config.TZ),
-        args=(bot, conn), id="monthly_reconciliation", replace_existing=True,
+        args=(bot, conn), id="monthly_reconciliation", replace_existing=True, misfire_grace_time=3600,
     )
 
     return scheduler

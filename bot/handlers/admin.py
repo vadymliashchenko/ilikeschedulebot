@@ -2,12 +2,12 @@ import datetime as dt
 import logging
 
 import aiosqlite
-from aiogram import F, Router
+from aiogram import Bot, F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from bot import config, db, keyboards, states
+from bot import config, db, keyboards, scheduler, states
 
 logger = logging.getLogger(__name__)
 router = Router(name="admin")
@@ -19,6 +19,24 @@ router.callback_query.filter(F.message.chat.id == config.OWNER_CHAT_ID)
 async def cmd_admin(message: Message, state: FSMContext) -> None:
     await state.clear()
     await message.answer("Керування складом хореографів:", reply_markup=keyboards.admin_menu_keyboard())
+
+
+@router.message(Command("pollnow"))
+async def cmd_poll_now(message: Message, conn: aiosqlite.Connection, bot: Bot) -> None:
+    await scheduler.job_start_poll(bot, conn)
+    await message.answer("Опитування за завтра запущено вручну.")
+
+
+@router.message(Command("remindnow"))
+async def cmd_remind_now(message: Message, conn: aiosqlite.Connection, bot: Bot) -> None:
+    await scheduler.job_reminder(bot, conn)
+    await message.answer("Нагадування надіслано вручну.")
+
+
+@router.message(Command("tablenow"))
+async def cmd_table_now(message: Message, conn: aiosqlite.Connection, bot: Bot) -> None:
+    await scheduler.job_final_table(bot, conn)
+    await message.answer("Таблицю опубліковано вручну.")
 
 
 @router.message(Command("links"))
