@@ -74,8 +74,8 @@ async def handle_substitute_name(
         return
 
     await db.save_response(conn, group_id, lesson_date, "substitute", extra_name=name)
-    await callback.answer(f"Записано: заміна — {name}")
-    await callback.message.edit_text(f"🔀 {group['choreographer']} — заміна: {name}")
+    await callback.answer(f"Записано: заміна - {name}")
+    await callback.message.edit_text(f"🔀 {group['choreographer']} - заміна: {name}")
 
     await _check_limits(bot, conn, group, "substitute", lesson_date)
 
@@ -105,7 +105,7 @@ async def handle_substitute_text(
         return
 
     await db.save_response(conn, group_id, lesson_date, "substitute", extra_name=name)
-    await message.answer(f"🔀 {group['choreographer']} — заміна: {name}")
+    await message.answer(f"🔀 {group['choreographer']} - заміна: {name}")
 
     await _check_limits(bot, conn, group, "substitute", lesson_date)
 

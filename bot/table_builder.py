@@ -89,12 +89,12 @@ def _group_by_time(entries: list[tuple[str, str]]) -> str:
 def _build_legend(used_emoji: set[str]) -> str:
     lines = [
         "Що означають значки:",
-        "★ — група початкового рівня",
-        "★★ — група середнього рівня",
+        "★ - група початкового рівня",
+        "★★ - група середнього рівня",
     ]
     for emoji in _LEGEND_ORDER:
         if emoji in used_emoji:
-            lines.append(f"{emoji} — {config.STATUS_EMOJI_LEGEND[emoji]}")
+            lines.append(f"{emoji} - {config.STATUS_EMOJI_LEGEND[emoji]}")
     return "\n".join(lines)
 
 

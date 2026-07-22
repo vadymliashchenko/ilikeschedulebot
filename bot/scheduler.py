@@ -29,7 +29,7 @@ async def job_start_poll(bot: Bot, conn: aiosqlite.Connection) -> None:
         if existing is not None:
             continue
         text = (
-            f"🗓 {g['choreographer']} — {g['style']} о {g['time']}\n"
+            f"🗓 {g['choreographer']} - {g['style']} о {g['time']}\n"
             f"Який статус завтрашнього заняття?"
         )
         kb = keyboards.status_keyboard(g["id"], lesson_date.isoformat())
@@ -45,7 +45,7 @@ async def job_reminder(bot: Bot, conn: aiosqlite.Connection) -> None:
     names = sorted({g["choreographer"] for g in missing})
     cat = random.choice(config.CAT_EMOJI)
     lines = [f"не отримали ще відповідь від цих котиків {cat}"]
-    lines += [f"— {name}" for name in names]
+    lines += [f"- {name}" for name in names]
     await bot.send_message(config.CHOREO_GROUP_CHAT_ID, "\n".join(lines))
 
 
@@ -99,7 +99,7 @@ async def job_monthly_reconciliation(bot: Bot, conn: aiosqlite.Connection) -> No
     active_groups = await db.get_active_groups(conn)
     names = sorted({g["choreographer"] for g in active_groups})
 
-    lines = [f"📊 Місячна звірка — {year_month}"]
+    lines = [f"📊 Місячна звірка - {year_month}"]
     for name in names:
         entries = await db.get_month_entries_for_choreographer(conn, name, year_month)
         if not entries:

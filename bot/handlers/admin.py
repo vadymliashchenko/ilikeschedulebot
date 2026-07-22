@@ -48,7 +48,7 @@ async def cmd_links(message: Message, conn: aiosqlite.Connection) -> None:
     lines = ["Прив'язки хореограф → Telegram ID:"]
     kb_rows = []
     for row in links:
-        lines.append(f"— {row['choreographer']} → {row['telegram_user_id']}")
+        lines.append(f"- {row['choreographer']} → {row['telegram_user_id']}")
         kb_rows.append(
             [InlineKeyboardButton(
                 text=f"🔓 Скинути: {row['choreographer']}",
@@ -146,7 +146,7 @@ async def admin_add_date(message: Message, state: FSMContext, conn: aiosqlite.Co
     )
     await state.clear()
     await message.answer(
-        f"Додано: {data['choreographer']} — {data['style']} о {data['time']}, "
+        f"Додано: {data['choreographer']} - {data['style']} о {data['time']}, "
         f"з {active_since.strftime('%d.%m.%Y')}."
     )
 
@@ -171,7 +171,7 @@ async def admin_remove_confirm(callback: CallbackQuery, state: FSMContext, conn:
     await state.clear()
     if group:
         await callback.message.edit_text(
-            f"Прибрано: {group['choreographer']} — {group['style']} о {group['time']}."
+            f"Прибрано: {group['choreographer']} - {group['style']} о {group['time']}."
         )
     else:
         await callback.message.edit_text("Прибрано.")
