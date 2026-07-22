@@ -3,16 +3,19 @@ import logging
 
 import aiosqlite
 from aiogram import Bot, F, Router
-from aiogram.types import CallbackQuery
+from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery, Message
 
-from bot import config, db
+from bot import config, db, keyboards, states
 
 logger = logging.getLogger(__name__)
 router = Router(name="poll")
 
 
 @router.callback_query(F.data.startswith("status:"))
-async def handle_status(callback: CallbackQuery, conn: aiosqlite.Connection, bot: Bot) -> None:
+async def handle_status(
+    callback: CallbackQuery, conn: aiosqlite.Connection, bot: Bot, state: FSMContext
+) -> None:
     _, group_id_str, date_str, status_key = callback.data.split(":", 3)
     group_id = int(group_id_str)
     lesson_date = dt.date.fromisoformat(date_str)
@@ -42,12 +45,69 @@ async def handle_status(callback: CallbackQuery, conn: aiosqlite.Connection, bot
             return
         await db.register_choreographer_link(conn, choreographer, callback.from_user.id)
 
+    if status_key == "substitute":
+        await callback.answer("Оберіть, хто заміняє")
+        kb = keyboards.substitute_keyboard(group_id, date_str, choreographer)
+        await callback.message.edit_reply_markup(reply_markup=kb)
+        return
+
     await db.save_response(conn, group_id, lesson_date, status_key)
 
     info = config.STATUSES[status_key]
     await callback.answer(f"Записано: {info['label']}")
 
     await _check_limits(bot, conn, group, status_key, lesson_date)
+
+
+@router.callback_query(F.data.startswith("subname:"))
+async def handle_substitute_name(
+    callback: CallbackQuery, conn: aiosqlite.Connection, bot: Bot
+) -> None:
+    _, group_id_str, date_str, idx_str = callback.data.split(":", 3)
+    group_id = int(group_id_str)
+    lesson_date = dt.date.fromisoformat(date_str)
+    name = config.CHOREOGRAPHERS[int(idx_str)]
+
+    group = await db.get_group(conn, group_id)
+    if group is None:
+        await callback.answer("Групу не знайдено.", show_alert=True)
+        return
+
+    await db.save_response(conn, group_id, lesson_date, "substitute", extra_name=name)
+    await callback.answer(f"Записано: заміна — {name}")
+    await callback.message.edit_text(f"🔀 {group['choreographer']} — заміна: {name}")
+
+    await _check_limits(bot, conn, group, "substitute", lesson_date)
+
+
+@router.callback_query(F.data.startswith("subother:"))
+async def handle_substitute_other(callback: CallbackQuery, state: FSMContext) -> None:
+    _, group_id_str, date_str = callback.data.split(":", 2)
+    await state.set_state(states.SubstituteInput.waiting_name)
+    await state.update_data(group_id=int(group_id_str), date_str=date_str)
+    await callback.answer()
+    await callback.message.edit_text("Напишіть, будь ласка, ім'я того, хто заміняє:")
+
+
+@router.message(states.SubstituteInput.waiting_name)
+async def handle_substitute_text(
+    message: Message, state: FSMContext, conn: aiosqlite.Connection, bot: Bot
+) -> None:
+    data = await state.get_data()
+    group_id = data["group_id"]
+    lesson_date = dt.date.fromisoformat(data["date_str"])
+    name = message.text.strip()
+    await state.clear()
+
+    group = await db.get_group(conn, group_id)
+    if group is None:
+        await message.answer("Групу не знайдено.")
+        return
+
+    await db.save_response(conn, group_id, lesson_date, "substitute", extra_name=name)
+    await message.answer(f"🔀 {group['choreographer']} — заміна: {name}")
+
+    await _check_limits(bot, conn, group, "substitute", lesson_date)
 
 
 async def _check_limits(

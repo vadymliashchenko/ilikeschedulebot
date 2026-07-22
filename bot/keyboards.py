@@ -17,6 +17,26 @@ def status_keyboard(group_id: int, lesson_date_iso: str) -> InlineKeyboardMarkup
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+def substitute_keyboard(group_id: int, lesson_date_iso: str, exclude_name: str) -> InlineKeyboardMarkup:
+    rows = []
+    for idx, name in enumerate(config.CHOREOGRAPHERS):
+        if name == exclude_name:
+            continue
+        rows.append(
+            [InlineKeyboardButton(
+                text=name,
+                callback_data=f"subname:{group_id}:{lesson_date_iso}:{idx}",
+            )]
+        )
+    rows.append(
+        [InlineKeyboardButton(
+            text="✍️ Інший варіант (написати)",
+            callback_data=f"subother:{group_id}:{lesson_date_iso}",
+        )]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 def admin_menu_keyboard() -> InlineKeyboardMarkup:
     rows = [
         [InlineKeyboardButton(text="➕ Додати хореографа", callback_data="admin:add")],

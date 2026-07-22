@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS responses (
     group_id INTEGER NOT NULL REFERENCES groups(id),
     lesson_date TEXT NOT NULL,
     status_key TEXT NOT NULL,
+    extra_name TEXT,
     created_at TEXT NOT NULL,
     UNIQUE(group_id, lesson_date)
 );
@@ -56,8 +57,18 @@ async def init_db(path: str) -> aiosqlite.Connection:
     conn.row_factory = aiosqlite.Row
     await conn.executescript(SCHEMA)
     await conn.commit()
+    await _migrate(conn)
     await _seed_groups_if_empty(conn)
     return conn
+
+
+async def _migrate(conn: aiosqlite.Connection) -> None:
+    """Add columns to tables that already existed before this field was introduced."""
+    cur = await conn.execute("PRAGMA table_info(responses)")
+    columns = {row["name"] for row in await cur.fetchall()}
+    if "extra_name" not in columns:
+        await conn.execute("ALTER TABLE responses ADD COLUMN extra_name TEXT")
+        await conn.commit()
 
 
 async def _seed_groups_if_empty(conn: aiosqlite.Connection) -> None:
@@ -140,13 +151,22 @@ async def get_upcoming_groups_for_date(
 
 
 async def save_response(
-    conn: aiosqlite.Connection, group_id: int, lesson_date: dt.date, status_key: str
+    conn: aiosqlite.Connection,
+    group_id: int,
+    lesson_date: dt.date,
+    status_key: str,
+    extra_name: Optional[str] = None,
 ) -> None:
     await conn.execute(
-        """INSERT INTO responses (group_id, lesson_date, status_key, created_at)
-           VALUES (?, ?, ?, ?)
-           ON CONFLICT(group_id, lesson_date) DO UPDATE SET status_key = excluded.status_key""",
-        (group_id, lesson_date.isoformat(), status_key, dt.datetime.now(config.TZ).isoformat()),
+        """INSERT INTO responses (group_id, lesson_date, status_key, extra_name, created_at)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(group_id, lesson_date) DO UPDATE SET
+               status_key = excluded.status_key,
+               extra_name = excluded.extra_name""",
+        (
+            group_id, lesson_date.isoformat(), status_key, extra_name,
+            dt.datetime.now(config.TZ).isoformat(),
+        ),
     )
     await conn.commit()
 
@@ -211,7 +231,7 @@ async def get_month_entries_for_choreographer(
     conn: aiosqlite.Connection, choreographer: str, year_month: str
 ) -> list[aiosqlite.Row]:
     cur = await conn.execute(
-        """SELECT r.lesson_date, r.status_key, g.time, g.style
+        """SELECT r.lesson_date, r.status_key, r.extra_name, g.time, g.style
            FROM responses r JOIN groups g ON g.id = r.group_id
            WHERE g.choreographer = ? AND r.lesson_date LIKE ?
            ORDER BY r.lesson_date, g.time""",

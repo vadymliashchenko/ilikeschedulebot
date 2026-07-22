@@ -59,12 +59,12 @@ async def job_final_table(bot: Bot, conn: aiosqlite.Connection) -> None:
         logger.info("No groups scheduled for %s, skipping table", lesson_date)
         return
 
-    responses_by_group: dict[int, str] = {}
+    responses_by_group: dict[int, aiosqlite.Row] = {}
     missing_choreographers: set[str] = set()
     for g in pollable:
         resp = await db.get_response(conn, g["id"], lesson_date)
         if resp is not None:
-            responses_by_group[g["id"]] = resp["status_key"]
+            responses_by_group[g["id"]] = resp
         else:
             missing_choreographers.add(g["choreographer"])
 

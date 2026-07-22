@@ -49,17 +49,21 @@ def _build_rows(lesson_date: dt.date, locked_groups, upcoming_groups, pollable_g
         entries.append((g["time"], line))
 
     for g in pollable_groups:
-        status_key = responses_by_group.get(g["id"])
+        resp = responses_by_group.get(g["id"])
         style_line = f"{g['style']}{_level_suffix(g['level'])}"
-        if status_key is None:
+        if resp is None:
             used_emoji.add("⚠️")
             status_line = None if client_version else "⚠️ хореограф ще не відповів"
         else:
+            status_key = resp["status_key"]
             info = config.STATUSES[status_key]
+            if status_key == "substitute" and resp["extra_name"]:
+                status_line = f"🔀 ЗАМІНА, {resp['extra_name']}, можна приєднатися"
+            else:
+                status_line = info["phrase"]
             for e in _LEGEND_ORDER:
-                if e in info["phrase"]:
+                if e in status_line:
                     used_emoji.add(e)
-            status_line = info["phrase"]
         entries.append((g["time"], _row(g["hall"], g["choreographer"], style_line, status_line)))
 
     entries.sort(key=lambda x: x[0])

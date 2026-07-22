@@ -18,3 +18,7 @@ class EditGroup(StatesGroup):
     choosing_field = State()
     choosing_style = State()
     choosing_time = State()
+
+
+class SubstituteInput(StatesGroup):
+    waiting_name = State()
