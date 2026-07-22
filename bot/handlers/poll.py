@@ -45,7 +45,7 @@ async def handle_status(callback: CallbackQuery, conn: aiosqlite.Connection, bot
     await db.save_response(conn, group_id, lesson_date, status_key)
 
     info = config.STATUSES[status_key]
-    await callback.answer(f"Записано: {info['emoji']} {info['label']}")
+    await callback.answer(f"Записано: {info['label']}")
 
     await _check_limits(bot, conn, group, status_key, lesson_date)
 

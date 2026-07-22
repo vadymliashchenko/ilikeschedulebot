@@ -91,7 +91,7 @@ def _weekday_patterns(weekday: int) -> list[str]:
 async def get_scheduled_groups_for_date(
     conn: aiosqlite.Connection, lesson_date: dt.date
 ) -> list[aiosqlite.Row]:
-    """All active groups (locked or not) whose day_pattern covers this date."""
+    """All active groups (locked, upcoming or pollable) whose day_pattern covers this date."""
     patterns = _weekday_patterns(lesson_date.weekday())
     if not patterns:
         return []
@@ -101,10 +101,9 @@ async def get_scheduled_groups_for_date(
         f"""SELECT * FROM groups
             WHERE active = 1
               AND day_pattern IN ({placeholders})
-              AND (start_date IS NULL OR start_date <= ?)
               AND (active_since IS NULL OR active_since <= ?)
             ORDER BY time, choreographer""",
-        (*patterns, date_str, date_str),
+        (*patterns, date_str),
     )
     return await cur.fetchall()
 
@@ -112,9 +111,13 @@ async def get_scheduled_groups_for_date(
 async def get_pollable_groups_for_date(
     conn: aiosqlite.Connection, lesson_date: dt.date
 ) -> list[aiosqlite.Row]:
-    """Scheduled groups that are not locked - these get asked in the daily poll."""
+    """Scheduled groups that are not locked and already started - asked in the daily poll."""
+    date_str = lesson_date.isoformat()
     rows = await get_scheduled_groups_for_date(conn, lesson_date)
-    return [r for r in rows if not r["locked"]]
+    return [
+        r for r in rows
+        if not r["locked"] and (r["start_date"] is None or r["start_date"] <= date_str)
+    ]
 
 
 async def get_locked_groups_for_date(
@@ -122,6 +125,18 @@ async def get_locked_groups_for_date(
 ) -> list[aiosqlite.Row]:
     rows = await get_scheduled_groups_for_date(conn, lesson_date)
     return [r for r in rows if r["locked"]]
+
+
+async def get_upcoming_groups_for_date(
+    conn: aiosqlite.Connection, lesson_date: dt.date
+) -> list[aiosqlite.Row]:
+    """Groups shown for info but not yet started (not polled)."""
+    date_str = lesson_date.isoformat()
+    rows = await get_scheduled_groups_for_date(conn, lesson_date)
+    return [
+        r for r in rows
+        if not r["locked"] and r["start_date"] is not None and r["start_date"] > date_str
+    ]
 
 
 async def save_response(

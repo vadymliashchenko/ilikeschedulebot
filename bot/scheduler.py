@@ -52,9 +52,10 @@ async def job_reminder(bot: Bot, conn: aiosqlite.Connection) -> None:
 async def job_final_table(bot: Bot, conn: aiosqlite.Connection) -> None:
     lesson_date = _tomorrow()
     locked = await db.get_locked_groups_for_date(conn, lesson_date)
+    upcoming = await db.get_upcoming_groups_for_date(conn, lesson_date)
     pollable = await db.get_pollable_groups_for_date(conn, lesson_date)
 
-    if not locked and not pollable:
+    if not locked and not upcoming and not pollable:
         logger.info("No groups scheduled for %s, skipping table", lesson_date)
         return
 
@@ -80,11 +81,15 @@ async def job_final_table(bot: Bot, conn: aiosqlite.Connection) -> None:
                 )
                 await db.mark_alert_sent(conn, "missed_polls", name, year_month)
 
-    internal_text = table_builder.build_internal_table(lesson_date, locked, pollable, responses_by_group)
+    internal_text = table_builder.build_internal_table(
+        lesson_date, locked, upcoming, pollable, responses_by_group
+    )
     await bot.send_message(config.CHOREO_GROUP_CHAT_ID, internal_text)
 
     if config.CLIENT_PUBLISHING_ENABLED and config.CLIENT_GROUP_CHAT_ID:
-        client_text = table_builder.build_client_table(lesson_date, locked, pollable, responses_by_group)
+        client_text = table_builder.build_client_table(
+            lesson_date, locked, upcoming, pollable, responses_by_group
+        )
         await bot.send_message(config.CLIENT_GROUP_CHAT_ID, client_text)
 
 
