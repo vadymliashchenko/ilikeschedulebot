@@ -8,6 +8,12 @@ CLIENT_GROUP_CHAT_ID = os.environ.get("CLIENT_GROUP_CHAT_ID")
 if CLIENT_GROUP_CHAT_ID:
     CLIENT_GROUP_CHAT_ID = int(CLIENT_GROUP_CHAT_ID)
 
+INSTAGRAM_CHAT_ID = os.environ.get("INSTAGRAM_CHAT_ID")
+if INSTAGRAM_CHAT_ID:
+    INSTAGRAM_CHAT_ID = int(INSTAGRAM_CHAT_ID)
+
+STORY_OUTPUT_DIR = os.environ.get("STORY_OUTPUT_DIR", "generated_stories")
+
 CLIENT_PUBLISHING_ENABLED = os.environ.get("CLIENT_PUBLISHING_ENABLED", "false").lower() == "true"
 
 TZ = ZoneInfo("Europe/Kyiv")

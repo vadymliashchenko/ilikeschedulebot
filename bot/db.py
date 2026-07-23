@@ -358,3 +358,14 @@ async def get_active_groups(conn: aiosqlite.Connection) -> list[aiosqlite.Row]:
 async def get_group(conn: aiosqlite.Connection, group_id: int) -> Optional[aiosqlite.Row]:
     cur = await conn.execute("SELECT * FROM groups WHERE id = ?", (group_id,))
     return await cur.fetchone()
+
+
+async def get_group_by_name_time_pattern(
+    conn: aiosqlite.Connection, choreographer: str, day_pattern: str, time: str
+) -> Optional[aiosqlite.Row]:
+    cur = await conn.execute(
+        """SELECT * FROM groups
+           WHERE choreographer = ? AND day_pattern = ? AND time = ? AND active = 1""",
+        (choreographer, day_pattern, time),
+    )
+    return await cur.fetchone()

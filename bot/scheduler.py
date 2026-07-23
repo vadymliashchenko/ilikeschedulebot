@@ -4,10 +4,11 @@ import random
 
 import aiosqlite
 from aiogram import Bot
+from aiogram.types import FSInputFile
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from bot import config, db, keyboards, table_builder
+from bot import config, db, keyboards, story_builder, table_builder
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,21 @@ async def job_final_table(bot: Bot, conn: aiosqlite.Connection) -> None:
             lesson_date, locked, upcoming, pollable, responses_by_group
         )
         await bot.send_message(config.CLIENT_GROUP_CHAT_ID, client_text)
+
+    if config.INSTAGRAM_CHAT_ID:
+        await send_story_pdf(bot, conn, lesson_date)
+
+
+async def send_story_pdf(bot: Bot, conn: aiosqlite.Connection, lesson_date: dt.date) -> None:
+    pdf_path = await story_builder.build_day_pdf(conn, lesson_date, config.STORY_OUTPUT_DIR)
+    if pdf_path is None:
+        return
+    await bot.send_document(
+        config.INSTAGRAM_CHAT_ID,
+        FSInputFile(pdf_path),
+        caption=f"Макети сторіс на {lesson_date.strftime('%d.%m')}. Якщо є помилка - напишіть "
+                f"виправлення і додайте /переробити.",
+    )
 
 
 async def job_monthly_reconciliation(bot: Bot, conn: aiosqlite.Connection) -> None:
