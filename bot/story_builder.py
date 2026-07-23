@@ -58,6 +58,26 @@ if _EMOJI_FONT_PATH is None:
 
 _TEXT_COLOR = (245, 235, 220)
 
+_LOCK_ICON_PATH = os.path.join(FONTS_DIR, "lock_icon.png")
+_LOCK_ICON = Image.open(_LOCK_ICON_PATH).convert("RGBA") if os.path.exists(_LOCK_ICON_PATH) else None
+_LOCK_ICON_COLOR = (197, 137, 109)  # тон замка, вже намальованого в шаблонах
+
+
+def _already_has_lock(im: Image.Image, box: tuple) -> bool:
+    """Чи в шаблоні вже намальований замок у цій пігулці (щоб не малювати другий поверх)."""
+    x0, y0, x1, y1 = box
+    x1 = min(x1, im.width - 1)
+    sample_points = [
+        (x0 + (x1 - x0) * fx // 4, y0 + (y1 - y0) * fy // 4)
+        for fx in (1, 2, 3) for fy in (1, 2, 3)
+    ]
+    hits = 0
+    for x, y in sample_points:
+        r, g, b = im.getpixel((x, y))
+        if sum(abs(a - b) for a, b in zip((r, g, b), _LOCK_ICON_COLOR)) < 60:
+            hits += 1
+    return hits >= 2
+
 # (емодзі, текст, режим) для кожного статусу.
 # "combined" - емодзі і перший рядок тексту в одному рядку, разом відцентровано
 # "stacked"  - емодзі окремим рядком зверху, текст (одним рядком) під ним
@@ -175,6 +195,15 @@ def _draw_pill(im: Image.Image, draw: ImageDraw.ImageDraw, box, emoji_char, text
             draw.text((center_x - w / 2, y - top), lines[i], font=font, fill=_TEXT_COLOR)
             y += h + gap
 
+    elif emoji_char == "🔒":
+        if _already_has_lock(im, box):
+            return  # шаблон вже має намальований замок тут - не дублюємо
+        emoji_size = 40
+        if _LOCK_ICON is not None:
+            icon = _LOCK_ICON.resize((emoji_size, emoji_size), Image.LANCZOS)
+            im.paste(icon, (int(center_x - emoji_size / 2), int(y0 + (box_h - emoji_size) / 2)), icon)
+        else:
+            _paste_emoji(im, emoji_char, int(center_x), int(y0 + (box_h - emoji_size) / 2), emoji_size)
     elif emoji_char:
         emoji_size = 40
         _paste_emoji(im, emoji_char, int(center_x), int(y0 + (box_h - emoji_size) / 2), emoji_size)
