@@ -3,6 +3,7 @@ import logging
 
 import aiosqlite
 from aiogram import Bot, F, Router
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
@@ -10,6 +11,11 @@ from bot import config, db, keyboards, states
 
 logger = logging.getLogger(__name__)
 router = Router(name="poll")
+
+
+@router.message(Command("chatid"))
+async def cmd_chatid(message: Message) -> None:
+    await message.answer(f"ID цього чату: {message.chat.id}")
 
 
 @router.callback_query(F.data.startswith("status:"))
