@@ -13,19 +13,17 @@ from bot import config, db, story_layout
 logger = logging.getLogger(__name__)
 
 ASSETS_DIR = os.path.join(os.path.dirname(__file__), "..", "assets", "story_templates")
+FONTS_DIR = os.path.join(os.path.dirname(__file__), "..", "assets", "fonts")
 
-# Шляхи для macOS (локальна розробка) та Linux/Railway (продакшн, шрифти
-# ставляться через nixpacks.toml). Беремо перший знайдений варіант.
+# Шрифти лежать прямо в репозиторії (assets/fonts) - тому однаково працюють
+# і локально на Mac, і на сервері Railway, незалежно від системних шрифтів.
 _TEXT_FONT_CANDIDATES = [
+    os.path.join(FONTS_DIR, "DejaVuSans-Bold.ttf"),
     "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-    "/nix/store/*/share/fonts/truetype/DejaVuSans-Bold.ttf",
 ]
 _EMOJI_FONT_CANDIDATES = [
+    os.path.join(FONTS_DIR, "NotoColorEmoji.ttf"),
     "/System/Library/Fonts/Apple Color Emoji.ttc",
-    "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
-    "/usr/share/fonts/noto/NotoColorEmoji.ttf",
-    "/nix/store/*/share/fonts/**/NotoColorEmoji.ttf",
 ]
 
 
@@ -39,8 +37,20 @@ def _find_font(candidates: list[str]) -> Optional[str]:
     return None
 
 
+def _find_supported_emoji_size(font_path: str) -> int:
+    """CBDT/sbix-шрифти мають лише кілька "фіксованих" розмірів. Знаходимо перший робочий."""
+    for size in list(range(16, 180)):
+        try:
+            ImageFont.truetype(font_path, size)
+            return size
+        except OSError:
+            continue
+    return 48
+
+
 _TEXT_FONT_PATH = _find_font(_TEXT_FONT_CANDIDATES)
 _EMOJI_FONT_PATH = _find_font(_EMOJI_FONT_CANDIDATES)
+_EMOJI_SOURCE_SIZE = _find_supported_emoji_size(_EMOJI_FONT_PATH) if _EMOJI_FONT_PATH else 48
 if _TEXT_FONT_PATH is None:
     logger.warning("No bold text font found for story images - falling back to PIL default")
 if _EMOJI_FONT_PATH is None:
@@ -84,8 +94,6 @@ def _draw_centered_text(draw: ImageDraw.ImageDraw, box, text: str, font) -> None
         draw.text((x, y - top), line, font=font, fill=_TEXT_COLOR)
         y += heights[i] + gap
 
-
-_EMOJI_SOURCE_SIZE = 48  # один із розмірів, які підтримує Apple Color Emoji
 
 
 def _render_emoji(char: str, target_size: int) -> Image.Image:
