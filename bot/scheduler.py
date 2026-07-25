@@ -94,19 +94,21 @@ async def job_final_table(bot: Bot, conn: aiosqlite.Connection) -> None:
         await bot.send_message(config.CLIENT_GROUP_CHAT_ID, client_text)
 
     if config.INSTAGRAM_CHAT_ID:
-        await send_story_pdf(bot, conn, lesson_date)
+        await send_story_images(bot, conn, lesson_date)
 
 
-async def send_story_pdf(bot: Bot, conn: aiosqlite.Connection, lesson_date: dt.date) -> None:
-    pdf_path = await story_builder.build_day_pdf(conn, lesson_date, config.STORY_OUTPUT_DIR)
-    if pdf_path is None:
+async def send_story_images(bot: Bot, conn: aiosqlite.Connection, lesson_date: dt.date) -> None:
+    image_paths = await story_builder.build_day_images(conn, lesson_date, config.STORY_OUTPUT_DIR)
+    if not image_paths:
         return
-    await bot.send_document(
-        config.INSTAGRAM_CHAT_ID,
-        FSInputFile(pdf_path),
-        caption=f"Макети сторіс на {lesson_date.strftime('%d.%m')}. Якщо є помилка - напишіть "
-                f"виправлення і додайте /переробити.",
-    )
+    for i, path in enumerate(image_paths):
+        caption = None
+        if i == len(image_paths) - 1:
+            caption = (
+                f"Макети сторіс на {lesson_date.strftime('%d.%m')}. Якщо є помилка - напишіть "
+                f"виправлення і додайте /переробити."
+            )
+        await bot.send_document(config.INSTAGRAM_CHAT_ID, FSInputFile(path), caption=caption)
 
 
 async def job_monthly_reconciliation(bot: Bot, conn: aiosqlite.Connection) -> None:

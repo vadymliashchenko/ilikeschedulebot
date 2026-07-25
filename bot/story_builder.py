@@ -85,6 +85,7 @@ def _already_has_lock(im: Image.Image, box: tuple) -> bool:
 _STORY_CONTENT = {
     "first": ("🆕", "НОВА\nХОРЕОГРАФІЯ", "combined"),
     "second_ok": (None, "МОЖНА\nПРИЄДНАТИСЯ", None),
+    "open": (None, "МОЖНА\nПРИЄДНАТИСЯ", None),
     "second_no": (None, "НЕ МОЖНА\nПРИЄДНАТИСЯ", None),
     "last_mk": (None, "ФОРМАТ МК", None),
     "filming": ("🎦", "ЗЙОМКА ВІДЕО", "stacked"),
@@ -243,7 +244,7 @@ async def build_story_image(
             text = f"ЗАМІНА\n{resp['extra_name']}"
         _draw_pill(im, draw, box, emoji_char, text, mode, text_font)
 
-    im.save(out_path, quality=95)
+    im.save(out_path)
     return out_path
 
 
@@ -252,10 +253,10 @@ def _patterns_for_date(lesson_date: dt.date) -> list[str]:
     return [p for p, days in config.DAY_PATTERN_WEEKDAYS.items() if weekday in days]
 
 
-async def build_day_pdf(
+async def build_day_images(
     conn: aiosqlite.Connection, lesson_date: dt.date, out_dir: str
-) -> Optional[str]:
-    """Генерує картинку на кожну годину, яка є в макетах для цього дня, і збирає в один PDF."""
+) -> list:
+    """Генерує окрему PNG-картинку на кожну годину, яка є в макетах для цього дня."""
     os.makedirs(out_dir, exist_ok=True)
     patterns = _patterns_for_date(lesson_date)
 
@@ -265,16 +266,11 @@ async def build_day_pdf(
         if p == pattern
     ]
     slots.sort(key=lambda pt: pt[1])
-    if not slots:
-        return None
 
-    images = []
+    paths = []
     for pattern, time in slots:
         safe_time = time.replace(":", "_")
-        img_path = os.path.join(out_dir, f"{lesson_date.isoformat()}_{pattern}_{safe_time}.jpg")
+        img_path = os.path.join(out_dir, f"{lesson_date.isoformat()}_{pattern}_{safe_time}.png")
         await build_story_image(conn, pattern, time, lesson_date, img_path)
-        images.append(Image.open(img_path).convert("RGB"))
-
-    pdf_path = os.path.join(out_dir, f"{lesson_date.isoformat()}.pdf")
-    images[0].save(pdf_path, save_all=True, append_images=images[1:])
-    return pdf_path
+        paths.append(img_path)
+    return paths

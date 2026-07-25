@@ -25,7 +25,8 @@ _KEYWORD_TO_STATUS = [
     ("майстер", "last_mk"),
     ("нова", "first"),
     ("хореографі", "first"),
-    ("можна", "second_ok"),
+    ("друге", "second_ok"),
+    ("можна", "open"),
 ]
 
 
@@ -99,15 +100,7 @@ async def handle_correction(message: Message, conn: aiosqlite.Connection, bot: B
     await db.save_response(conn, group["id"], lesson_date, status_key, extra_name=extra_name)
     await message.reply(f"Виправив: {choreographer} ({group['style']}, {group['time']}) - оновлюю макет.")
 
-    await _send_updated_pdf(bot, conn, lesson_date)
-
-
-async def _send_updated_pdf(bot: Bot, conn: aiosqlite.Connection, lesson_date: dt.date) -> None:
-    pdf_path = await story_builder.build_day_pdf(conn, lesson_date, config.STORY_OUTPUT_DIR)
-    if pdf_path is None:
-        return
-    await bot.send_document(
-        config.INSTAGRAM_CHAT_ID,
-        FSInputFile(pdf_path),
-        caption=f"Оновлений макет на {lesson_date.strftime('%d.%m')}.",
-    )
+    image_paths = await story_builder.build_day_images(conn, lesson_date, config.STORY_OUTPUT_DIR)
+    for i, path in enumerate(image_paths):
+        caption = f"Оновлений макет на {lesson_date.strftime('%d.%m')}." if i == len(image_paths) - 1 else None
+        await bot.send_document(config.INSTAGRAM_CHAT_ID, FSInputFile(path), caption=caption)
