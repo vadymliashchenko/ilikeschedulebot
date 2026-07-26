@@ -87,14 +87,33 @@ async def job_final_table(bot: Bot, conn: aiosqlite.Connection) -> None:
     )
     await bot.send_message(config.CHOREO_GROUP_CHAT_ID, internal_text)
 
-    if config.CLIENT_PUBLISHING_ENABLED and config.CLIENT_GROUP_CHAT_ID:
-        client_text = table_builder.build_client_table(
-            lesson_date, locked, upcoming, pollable, responses_by_group
-        )
-        await bot.send_message(config.CLIENT_GROUP_CHAT_ID, client_text)
-
     if config.INSTAGRAM_CHAT_ID:
         await send_story_images(bot, conn, lesson_date)
+
+
+async def job_client_repost(bot: Bot, conn: aiosqlite.Connection) -> None:
+    """О 21:00 перепощує вже готовий (з обіду) розклад завтрашнього дня в клієнтську групу."""
+    if not (config.CLIENT_PUBLISHING_ENABLED and config.CLIENT_GROUP_CHAT_ID):
+        return
+
+    lesson_date = _tomorrow()
+    locked = await db.get_locked_groups_for_date(conn, lesson_date)
+    upcoming = await db.get_upcoming_groups_for_date(conn, lesson_date)
+    pollable = await db.get_pollable_groups_for_date(conn, lesson_date)
+
+    if not locked and not upcoming and not pollable:
+        return
+
+    responses_by_group: dict[int, aiosqlite.Row] = {}
+    for g in pollable:
+        resp = await db.get_response(conn, g["id"], lesson_date)
+        if resp is not None:
+            responses_by_group[g["id"]] = resp
+
+    client_text = table_builder.build_client_table(
+        lesson_date, locked, upcoming, pollable, responses_by_group
+    )
+    await bot.send_message(config.CLIENT_GROUP_CHAT_ID, client_text)
 
 
 async def send_story_images(bot: Bot, conn: aiosqlite.Connection, lesson_date: dt.date) -> None:
@@ -144,6 +163,7 @@ def setup_scheduler(bot: Bot, conn: aiosqlite.Connection) -> AsyncIOScheduler:
     poll_h, poll_m = config.POLL_START_TIME.split(":")
     rem_h, rem_m = config.REMINDER_TIME.split(":")
     table_h, table_m = config.TABLE_TIME.split(":")
+    repost_h, repost_m = config.CLIENT_REPOST_TIME.split(":")
 
     # misfire_grace_time дозволяє джобі все одно спрацювати, якщо процес
     # перезапускався (деплой) саме в момент тригера - до години запізнення.
@@ -161,6 +181,11 @@ def setup_scheduler(bot: Bot, conn: aiosqlite.Connection) -> AsyncIOScheduler:
         job_final_table, CronTrigger(day_of_week=POLL_TRIGGER_DAYS, hour=table_h, minute=table_m,
                                       timezone=config.TZ),
         args=(bot, conn), id="final_table", replace_existing=True, misfire_grace_time=3600,
+    )
+    scheduler.add_job(
+        job_client_repost, CronTrigger(day_of_week=POLL_TRIGGER_DAYS, hour=repost_h, minute=repost_m,
+                                        timezone=config.TZ),
+        args=(bot, conn), id="client_repost", replace_existing=True, misfire_grace_time=3600,
     )
     scheduler.add_job(
         job_monthly_reconciliation, CronTrigger(day="last", hour=23, minute=0, timezone=config.TZ),

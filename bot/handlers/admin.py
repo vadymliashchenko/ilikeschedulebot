@@ -39,6 +39,12 @@ async def cmd_table_now(message: Message, conn: aiosqlite.Connection, bot: Bot) 
     await message.answer("Таблицю опубліковано вручну.")
 
 
+@router.message(Command("clientnow"))
+async def cmd_client_now(message: Message, conn: aiosqlite.Connection, bot: Bot) -> None:
+    await scheduler.job_client_repost(bot, conn)
+    await message.answer("Перепост у клієнтську групу виконано вручну (якщо ввімкнено).")
+
+
 @router.message(Command("links"))
 async def cmd_links(message: Message, conn: aiosqlite.Connection) -> None:
     links = await db.get_all_links(conn)
