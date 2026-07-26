@@ -4,6 +4,17 @@ from zoneinfo import ZoneInfo
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 CHOREO_GROUP_CHAT_ID = int(os.environ["CHOREO_GROUP_CHAT_ID"])
 OWNER_CHAT_ID = int(os.environ["OWNER_CHAT_ID"])
+
+# Адміністратор (наприклад, менеджер студії) - має доступ лише до керування
+# складом груп (➕/➖/✏️), але не до власницьких команд (звірка, ручні тригери).
+MANAGER_CHAT_ID = os.environ.get("MANAGER_CHAT_ID")
+if MANAGER_CHAT_ID:
+    MANAGER_CHAT_ID = int(MANAGER_CHAT_ID)
+
+GROUP_MANAGER_CHAT_IDS = {OWNER_CHAT_ID}
+if MANAGER_CHAT_ID:
+    GROUP_MANAGER_CHAT_IDS.add(MANAGER_CHAT_ID)
+
 CLIENT_GROUP_CHAT_ID = os.environ.get("CLIENT_GROUP_CHAT_ID")
 if CLIENT_GROUP_CHAT_ID:
     CLIENT_GROUP_CHAT_ID = int(CLIENT_GROUP_CHAT_ID)

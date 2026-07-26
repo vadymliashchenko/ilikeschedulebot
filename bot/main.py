@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from bot import config, db  # noqa: E402  (config reads env vars, must load after load_dotenv)
-from bot.handlers import admin, corrections, poll  # noqa: E402
+from bot.handlers import admin, corrections, manager, poll  # noqa: E402
 from bot.scheduler import setup_scheduler  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -25,6 +25,7 @@ async def main() -> None:
     dp["conn"] = conn
 
     dp.include_router(admin.router)
+    dp.include_router(manager.router)
     dp.include_router(poll.router)
     dp.include_router(corrections.router)
 
