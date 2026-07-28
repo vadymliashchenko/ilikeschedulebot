@@ -60,7 +60,7 @@ _TEXT_COLOR = (245, 235, 220)
 
 _LOCK_ICON_PATH = os.path.join(FONTS_DIR, "lock_icon.png")
 _LOCK_ICON = Image.open(_LOCK_ICON_PATH).convert("RGBA") if os.path.exists(_LOCK_ICON_PATH) else None
-_LOCK_SIZE = 46  # єдиний, завжди однаковий розмір замка
+_LOCK_SIZE = 52  # єдиний, завжди однаковий розмір замка (з запасом, щоб повністю перекрити старий)
 
 # (емодзі, текст, режим) для кожного статусу.
 # "stacked" - емодзі окремим рядком зверху, текст під ним
@@ -129,15 +129,13 @@ def _fit_font(draw: ImageDraw.ImageDraw, lines: list[str], base_font, extra_row_
 
 
 def _draw_lines_aligned(draw: ImageDraw.ImageDraw, box, lines: list[str], heights, font, start_y: float, gap: float) -> None:
-    """1 рядок -> по центру пігулки. 2+ рядки -> притиснуто до правого краю."""
+    """Кожен рядок по центру пігулки, з рівними відступами з обох боків."""
     x0, y0, x1, y1 = box
-    right_pad = 16
     center_x = x0 + (x1 - x0) / 2
-    single = len(lines) == 1
     y = start_y
     for i, line in enumerate(lines):
         w, h, top = heights[i]
-        x = (center_x - w / 2) if single else (x1 - right_pad - w)
+        x = center_x - w / 2
         draw.text((x, y - top), line, font=font, fill=_TEXT_COLOR)
         y += h + gap
 
@@ -157,7 +155,7 @@ def _draw_pill(im: Image.Image, draw: ImageDraw.ImageDraw, box, emoji_char, text
             _paste_emoji(im, emoji_char, int(center_x), int(y0 + (box_h - _LOCK_SIZE) / 2), _LOCK_SIZE)
         return
 
-    box_w = (x1 - x0) - 24
+    box_w = (x1 - x0) - 36
 
     if emoji_char and text and mode == "stacked":
         emoji_size = 28
