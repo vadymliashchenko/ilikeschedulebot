@@ -67,7 +67,7 @@ _LOCK_SIZE = 46  # єдиний, завжди однаковий розмір з
 # "large"   - просто текст, без емодзі, трохи більшим шрифтом (акцент)
 # None      - просто текст, без емодзі, звичайний розмір
 _STORY_CONTENT = {
-    "first": (None, "НОВА\nХОРЕОГРАФІЯ", None),
+    "first": (None, "НОВА\nХОРЕОГРАФІЯ", "hero"),
     "second_ok": (None, "МОЖНА\nПРИЄДНАТИСЯ", None),
     "open": (None, "МОЖНА\nПРИЄДНАТИСЯ", None),
     "second_no": (None, "НЕ МОЖНА\nПРИЄДНАТИСЯ", None),
@@ -110,16 +110,22 @@ def _ink_size(draw: ImageDraw.ImageDraw, text: str, font) -> tuple[int, int, int
     return right - left, bottom - top, top
 
 
-def _fit_font(draw: ImageDraw.ImageDraw, lines: list[str], base_font, extra_row_h: int, box_h: int):
-    """Підбирає розмір шрифту так, щоб усі рядки (+ додатковий рядок під іконку) влізли у box_h."""
-    for size in (base_font.size, base_font.size - 2, base_font.size - 4, base_font.size - 6):
+def _fit_font(draw: ImageDraw.ImageDraw, lines: list[str], base_font, extra_row_h: int, box_h: int,
+              box_w: Optional[int] = None):
+    """Підбирає розмір шрифту так, щоб усі рядки (+ рядок під іконку) влізли і по висоті, і по ширині."""
+    min_size = 12
+    for size in range(base_font.size, min_size - 1, -2):
         font = base_font.font_variant(size=size)
         gap = max(2, size // 6)
-        heights = [_ink_size(draw, ln, font)[1] for ln in lines]
-        total = extra_row_h + gap * len(lines) + sum(heights)
-        if total <= box_h or size == base_font.size - 6:
+        sizes = [_ink_size(draw, ln, font) for ln in lines]
+        heights = [h for _, h, _ in sizes]
+        widths = [w for w, _, _ in sizes]
+        total_h = extra_row_h + gap * len(lines) + sum(heights)
+        fits_h = total_h <= box_h
+        fits_w = box_w is None or max(widths) <= box_w
+        if (fits_h and fits_w) or size <= min_size:
             return font, gap
-    return base_font, 4
+    return base_font.font_variant(size=min_size), 4
 
 
 def _draw_lines_aligned(draw: ImageDraw.ImageDraw, box, lines: list[str], heights, font, start_y: float, gap: float) -> None:
@@ -151,10 +157,12 @@ def _draw_pill(im: Image.Image, draw: ImageDraw.ImageDraw, box, emoji_char, text
             _paste_emoji(im, emoji_char, int(center_x), int(y0 + (box_h - _LOCK_SIZE) / 2), _LOCK_SIZE)
         return
 
+    box_w = (x1 - x0) - 24
+
     if emoji_char and text and mode == "stacked":
         emoji_size = 28
         lines = text.split("\n")
-        font, gap = _fit_font(draw, lines, text_font, emoji_size, box_h)
+        font, gap = _fit_font(draw, lines, text_font, emoji_size, box_h, box_w)
         heights = [_ink_size(draw, ln, font) for ln in lines]
         total_h = emoji_size + gap + gap * (len(lines) - 1) + sum(h for _, h, _ in heights)
         y = y0 + (box_h - total_h) / 2
@@ -163,10 +171,37 @@ def _draw_pill(im: Image.Image, draw: ImageDraw.ImageDraw, box, emoji_char, text
         _draw_lines_aligned(draw, box, lines, heights, font, y, gap)
         return
 
+    if mode == "hero" and text:
+        big_line, small_line = text.split("\n")
+        gap = max(3, text_font.size // 4)
+
+        big_font = text_font.font_variant(size=text_font.size + 10)
+        while True:
+            w, h, top = _ink_size(draw, big_line, big_font)
+            if w <= box_w or big_font.size <= 14:
+                break
+            big_font = big_font.font_variant(size=big_font.size - 2)
+
+        small_font = text_font.font_variant(size=text_font.size - 2)
+        while True:
+            w2, h2, top2 = _ink_size(draw, small_line, small_font)
+            if w2 <= box_w or small_font.size <= 10:
+                break
+            small_font = small_font.font_variant(size=small_font.size - 2)
+
+        w0, h0, top0 = _ink_size(draw, big_line, big_font)
+        w1, h1, top1 = _ink_size(draw, small_line, small_font)
+        total_h = h0 + gap + h1
+        y = y0 + (box_h - total_h) / 2
+        draw.text((center_x - w0 / 2, y - top0), big_line, font=big_font, fill=_TEXT_COLOR)
+        y += h0 + gap
+        draw.text((center_x - w1 / 2, y - top1), small_line, font=small_font, fill=_TEXT_COLOR)
+        return
+
     if text:
         base_font = text_font.font_variant(size=text_font.size + 6) if mode == "large" else text_font
         lines = text.split("\n")
-        font, gap = _fit_font(draw, lines, base_font, 0, box_h)
+        font, gap = _fit_font(draw, lines, base_font, 0, box_h, box_w)
         heights = [_ink_size(draw, ln, font) for ln in lines]
         total_h = sum(h for _, h, _ in heights) + gap * (len(lines) - 1)
         y = y0 + (box_h - total_h) / 2
