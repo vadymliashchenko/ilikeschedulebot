@@ -369,3 +369,17 @@ async def get_group_by_name_time_pattern(
         (choreographer, day_pattern, time),
     )
     return await cur.fetchone()
+
+
+async def get_locked_group_by_name_pattern(
+    conn: aiosqlite.Connection, choreographer: str, day_pattern: str
+) -> Optional[aiosqlite.Row]:
+    """Для декоративних рядків у макеті сторіс, час яких не збігається 1:1 з
+    реальним часом закритої групи (напр. вона показана в кількох кадрах)."""
+    cur = await conn.execute(
+        """SELECT * FROM groups
+           WHERE choreographer = ? AND day_pattern = ? AND locked = 1 AND active = 1
+           LIMIT 1""",
+        (choreographer, day_pattern),
+    )
+    return await cur.fetchone()

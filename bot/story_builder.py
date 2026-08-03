@@ -222,7 +222,11 @@ async def build_story_image(
         box = _pill_box(i)
         group = await db.get_group_by_name_time_pattern(conn, name, day_pattern, time)
         if group is None:
-            continue
+            # Рядок міг бути показаний у цьому кадрі суто декоративно (наприклад,
+            # закрита група в іншу годину) - шукаємо її як закриту, незалежно від часу.
+            group = await db.get_locked_group_by_name_pattern(conn, name, day_pattern)
+            if group is None:
+                continue
 
         if group["locked"]:
             _draw_pill(im, draw, box, "🔒", None, None, text_font)
