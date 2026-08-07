@@ -10,13 +10,15 @@ from bot import config, db, story_builder
 
 logger = logging.getLogger(__name__)
 router = Router(name="corrections")
-router.message.filter(F.chat.id == config.INSTAGRAM_CHAT_ID)
+router.message.filter(
+    F.chat.id == config.INSTAGRAM_CHAT_ID,
+    F.message_thread_id == config.SCHEDULE_TOPIC_ID,
+)
 
 _TRIGGER = "/переробити"
 
 # Порядок важливий: перевіряємо специфічніші/заперечні фрази раніше загальніших.
 _KEYWORD_TO_STATUS = [
-    ("не можна", "second_no"),
     ("зйомк", "filming"),
     ("замін", "substitute"),
     ("відмін", "cancelled"),
@@ -25,8 +27,14 @@ _KEYWORD_TO_STATUS = [
     ("майстер", "last_mk"),
     ("нова", "first"),
     ("хореографі", "first"),
+    ("не можна", "closed"),
     ("друге", "second_ok"),
     ("можна", "open"),
+]
+
+# "друге заняття - не можна" - специфічніший випадок, ніж просто "не можна".
+_COMPOUND_KEYWORDS = [
+    ({"друге", "не можна"}, "second_no"),
 ]
 
 
@@ -41,6 +49,9 @@ def _find_choreographer(text: str) -> Optional[str]:
 
 def _find_status(text: str) -> Optional[str]:
     low = text.lower()
+    for keywords, status_key in _COMPOUND_KEYWORDS:
+        if all(kw in low for kw in keywords):
+            return status_key
     for keyword, status_key in _KEYWORD_TO_STATUS:
         if keyword in low:
             return status_key
@@ -103,4 +114,5 @@ async def handle_correction(message: Message, conn: aiosqlite.Connection, bot: B
     image_paths = await story_builder.build_day_images(conn, lesson_date, config.STORY_OUTPUT_DIR)
     for i, path in enumerate(image_paths):
         caption = f"Оновлений макет на {lesson_date.strftime('%d.%m')}." if i == len(image_paths) - 1 else None
-        await bot.send_document(config.INSTAGRAM_CHAT_ID, FSInputFile(path), caption=caption)
+        await bot.send_document(config.INSTAGRAM_CHAT_ID, FSInputFile(path), caption=caption,
+                                 message_thread_id=config.SCHEDULE_TOPIC_ID)

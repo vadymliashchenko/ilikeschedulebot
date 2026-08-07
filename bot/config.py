@@ -23,6 +23,19 @@ INSTAGRAM_CHAT_ID = os.environ.get("INSTAGRAM_CHAT_ID")
 if INSTAGRAM_CHAT_ID:
     INSTAGRAM_CHAT_ID = int(INSTAGRAM_CHAT_ID)
 
+# Якщо CHOREO_GROUP_CHAT_ID/INSTAGRAM_CHAT_ID вказують на форум (групу з гілками-темами),
+# SCHEDULE_TOPIC_ID - id гілки "Schedule" (опитування, таблиця, макети сторіс).
+# TEAM_CHAT_TOPIC_ID - id гілки "Team Chat" (лише нагадування, хто не проголосував -
+# там хореографи спілкуються частіше й швидше побачать). Якщо не задано - постимо
+# в загальний чат/тему (для звичайної групи без гілок).
+SCHEDULE_TOPIC_ID = os.environ.get("SCHEDULE_TOPIC_ID")
+if SCHEDULE_TOPIC_ID:
+    SCHEDULE_TOPIC_ID = int(SCHEDULE_TOPIC_ID)
+
+TEAM_CHAT_TOPIC_ID = os.environ.get("TEAM_CHAT_TOPIC_ID")
+if TEAM_CHAT_TOPIC_ID:
+    TEAM_CHAT_TOPIC_ID = int(TEAM_CHAT_TOPIC_ID)
+
 STORY_OUTPUT_DIR = os.environ.get("STORY_OUTPUT_DIR", "generated_stories")
 
 CLIENT_PUBLISHING_ENABLED = os.environ.get("CLIENT_PUBLISHING_ENABLED", "false").lower() == "true"
@@ -110,6 +123,12 @@ STATUSES = {
         "label": "можна приєднатись",
         "phrase": "можна приєднатися",
         "can_join": True,
+    },
+    "closed": {
+        "button": "❌ Не можна приєднатись",
+        "label": "не можна приєднатись",
+        "phrase": "не можна приєднатися",
+        "can_join": False,
     },
     "second_no": {
         "button": "2️⃣ Друге заняття - не можна",

@@ -15,7 +15,10 @@ router = Router(name="poll")
 
 @router.message(Command("chatid"))
 async def cmd_chatid(message: Message) -> None:
-    await message.answer(f"ID цього чату: {message.chat.id}")
+    text = f"ID цього чату: {message.chat.id}"
+    if message.message_thread_id is not None:
+        text += f"\nID цієї гілки (теми): {message.message_thread_id}"
+    await message.answer(text)
 
 
 @router.callback_query(F.data.startswith("status:"))

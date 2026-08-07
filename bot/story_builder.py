@@ -59,21 +59,30 @@ if _EMOJI_FONT_PATH is None:
 _TEXT_COLOR = (245, 235, 220)
 
 # Для закритих груп замінюємо ВСЮ пігулку (не тільки замок) на готове зображення,
-# вирізане з дизайну оригінального макету - по одному на кожен з 5 рядків
+# вирізане з дизайну оригінального макету - по одному на кожен з 5 рядків, окремо
+# для кожної роздільної здатності шаблонів (720 - "ср", 1080 - решта).
 # (межі пігулки в кожному рядку однакові, тому підміна виглядає безшовно).
 _LOCKED_PILLS_DIR = os.path.join(ASSETS_DIR, "locked_pills")
-_LOCKED_PILL_ROWS = [
-    Image.open(os.path.join(_LOCKED_PILLS_DIR, f"row{i}.png")).convert("RGB")
-    for i in range(len(story_layout.STORY_PILL_Y_BOUNDS))
-]
+_FILMING_PILLS_DIR = os.path.join(ASSETS_DIR, "filming_pills")
+_ROW_COUNT = 5
+
+
+def _load_pill_rows(base_dir: str) -> dict:
+    rows_by_width = {}
+    for width in (720, 1080):
+        subdir = os.path.join(base_dir, str(width))
+        if os.path.isdir(subdir):
+            rows_by_width[width] = [
+                Image.open(os.path.join(subdir, f"row{i}.png")).convert("RGB")
+                for i in range(_ROW_COUNT)
+            ]
+    return rows_by_width
+
 
 # Те саме для "зйомка відео" - одна й та сама іконка (без тексту), вирізана
 # разом з пігулкою по кожному з 5 рядків, щоб розмір/пропорції були завжди однакові.
-_FILMING_PILLS_DIR = os.path.join(ASSETS_DIR, "filming_pills")
-_FILMING_PILL_ROWS = [
-    Image.open(os.path.join(_FILMING_PILLS_DIR, f"row{i}.png")).convert("RGB")
-    for i in range(len(story_layout.STORY_PILL_Y_BOUNDS))
-]
+_LOCKED_PILL_ROWS = _load_pill_rows(_LOCKED_PILLS_DIR)
+_FILMING_PILL_ROWS = _load_pill_rows(_FILMING_PILLS_DIR)
 
 # (емодзі, текст, режим) для кожного статусу.
 # "stacked" - емодзі окремим рядком зверху, текст під ним
@@ -83,6 +92,7 @@ _STORY_CONTENT = {
     "first": (None, "НОВА\nХОРЕОГРАФІЯ", "hero"),
     "second_ok": (None, "МОЖНА\nПРИЄДНАТИСЯ", "right"),
     "open": (None, "МОЖНА\nПРИЄДНАТИСЯ", "right"),
+    "closed": (None, "НЕ МОЖНА\nПРИЄДНАТИСЯ", "right"),
     "second_no": (None, "НЕ МОЖНА\nПРИЄДНАТИСЯ", "right"),
     "last_mk": (None, "ФОРМАТ МК", None),
     "filming": ("🎬", None, "icon_only"),
@@ -91,9 +101,9 @@ _STORY_CONTENT = {
 }
 
 
-def _pill_box(row_index: int) -> tuple[int, int, int, int]:
-    y0, y1 = story_layout.STORY_PILL_Y_BOUNDS[row_index]
-    x0, x1 = story_layout.STORY_PILL_X
+def _pill_box(row_index: int, bounds: dict) -> tuple[int, int, int, int]:
+    y0, y1 = bounds["y_bounds"][row_index]
+    x0, x1 = bounds["x"]
     return (x0, y0, x1, y1)
 
 
@@ -124,9 +134,8 @@ def _ink_size(draw: ImageDraw.ImageDraw, text: str, font) -> tuple[int, int, int
 
 
 def _fit_font(draw: ImageDraw.ImageDraw, lines: list[str], base_font, extra_row_h: int, box_h: int,
-              box_w: Optional[int] = None):
+              box_w: Optional[int] = None, min_size: int = 12):
     """Підбирає розмір шрифту так, щоб усі рядки (+ рядок під іконку) влізли і по висоті, і по ширині."""
-    min_size = 12
     for size in range(base_font.size, min_size - 1, -2):
         font = base_font.font_variant(size=size)
         gap = max(2, size // 6)
@@ -162,7 +171,10 @@ def _draw_lines_aligned(draw: ImageDraw.ImageDraw, box, lines: list[str], height
 
 
 def _draw_pill(im: Image.Image, draw: ImageDraw.ImageDraw, box, emoji_char, text, mode, text_font,
-               row_index: Optional[int] = None) -> None:
+               row_index: Optional[int] = None, scale: float = 1.0, pill_width: int = 720) -> None:
+    def s(px: float) -> int:
+        return round(px * scale)
+
     x0, y0, x1, y1 = box
     center_x = x0 + (x1 - x0) / 2
     box_h = y1 - y0
@@ -170,23 +182,23 @@ def _draw_pill(im: Image.Image, draw: ImageDraw.ImageDraw, box, emoji_char, text
     if emoji_char == "🔒":
         # Замінюємо всю пігулку картинкою з готовим замком (вирізаною з дизайну
         # макету), а не малюємо іконку поверх - так межі пігулки завжди чіткі.
-        pill = _LOCKED_PILL_ROWS[row_index]
+        pill = _LOCKED_PILL_ROWS[pill_width][row_index]
         im.paste(pill, (x0, y0))
         return
 
-    box_w = (x1 - x0) - 36
+    box_w = (x1 - x0) - s(36)
 
     if emoji_char == "🎬" and mode == "icon_only":
         # Так само, як і замок - вставляємо всю пігулку одним готовим зображенням
         # з однією й тією ж іконкою, а не рендеримо емодзі щоразу наново.
-        pill = _FILMING_PILL_ROWS[row_index]
+        pill = _FILMING_PILL_ROWS[pill_width][row_index]
         im.paste(pill, (x0, y0))
         return
 
     if emoji_char and text and mode == "stacked":
-        emoji_size = 28
+        emoji_size = s(28)
         lines = text.split("\n")
-        font, gap = _fit_font(draw, lines, text_font, emoji_size, box_h, box_w)
+        font, gap = _fit_font(draw, lines, text_font, emoji_size, box_h, box_w, min_size=s(12))
         heights = [_ink_size(draw, ln, font) for ln in lines]
         total_h = emoji_size + gap + gap * (len(lines) - 1) + sum(h for _, h, _ in heights)
         y = y0 + (box_h - total_h) / 2
@@ -197,19 +209,20 @@ def _draw_pill(im: Image.Image, draw: ImageDraw.ImageDraw, box, emoji_char, text
 
     if mode == "hero" and text:
         big_line, small_line = text.split("\n")
-        gap = max(3, text_font.size // 4)
+        gap = max(s(3), text_font.size // 4)
+        min_big, min_small = s(14), s(10)
 
-        big_font = text_font.font_variant(size=text_font.size + 14)
+        big_font = text_font.font_variant(size=text_font.size + s(14))
         while True:
             w0, h0, top0 = _ink_size(draw, big_line, big_font)
-            if w0 <= box_w or big_font.size <= 14:
+            if w0 <= box_w or big_font.size <= min_big:
                 break
             big_font = big_font.font_variant(size=big_font.size - 2)
 
-        small_font = text_font.font_variant(size=text_font.size - 2)
+        small_font = text_font.font_variant(size=text_font.size - s(2))
         while True:
             w1, h1, top1 = _ink_size(draw, small_line, small_font)
-            if w1 <= box_w or small_font.size <= 10:
+            if w1 <= box_w or small_font.size <= min_small:
                 break
             small_font = small_font.font_variant(size=small_font.size - 2)
 
@@ -219,7 +232,7 @@ def _draw_pill(im: Image.Image, draw: ImageDraw.ImageDraw, box, emoji_char, text
             w0, h0, top0 = _ink_size(draw, big_line, big_font)
             w1, h1, top1 = _ink_size(draw, small_line, small_font)
             total_h = h0 + gap + h1
-            if total_h <= box_h or big_font.size <= 14:
+            if total_h <= box_h or big_font.size <= min_big:
                 break
             big_font = big_font.font_variant(size=big_font.size - 2)
 
@@ -233,32 +246,32 @@ def _draw_pill(im: Image.Image, draw: ImageDraw.ImageDraw, box, emoji_char, text
         return
 
     if mode == "top_large" and text:
-        base_font = text_font.font_variant(size=text_font.size + 10)
+        base_font = text_font.font_variant(size=text_font.size + s(10))
         lines = text.split("\n")
-        font, gap = _fit_font(draw, lines, base_font, 0, box_h, box_w)
+        font, gap = _fit_font(draw, lines, base_font, 0, box_h, box_w, min_size=s(12))
         heights = [_ink_size(draw, ln, font) for ln in lines]
-        top_margin = 14
+        top_margin = s(14)
         _draw_lines_aligned(draw, box, lines, heights, font, y0 + top_margin, gap, align="center")
         return
 
     if text:
-        right_margin = 18
+        right_margin = s(18)
         center_offset = 0
         vertical_offset = 0
         if mode == "large":
-            base_font = text_font.font_variant(size=text_font.size + 6)
+            base_font = text_font.font_variant(size=text_font.size + s(6))
             align = "center"
-            vertical_offset = 3
+            vertical_offset = s(3)
         elif mode == "right":
-            base_font = text_font.font_variant(size=text_font.size + 18)
+            base_font = text_font.font_variant(size=text_font.size + s(18))
             align = "right"
-            right_margin = 8
+            right_margin = s(8)
             box_w = (x1 - x0) - 2 * right_margin
         else:
             base_font = text_font
             align = "center"
         lines = text.split("\n")
-        font, gap = _fit_font(draw, lines, base_font, 0, box_h, box_w)
+        font, gap = _fit_font(draw, lines, base_font, 0, box_h, box_w, min_size=s(12))
         heights = [_ink_size(draw, ln, font) for ln in lines]
         total_h = sum(h for _, h, _ in heights) + gap * (len(lines) - 1)
         y = y0 + (box_h - total_h) / 2 + vertical_offset
@@ -273,13 +286,16 @@ async def build_story_image(
     im = Image.open(os.path.join(ASSETS_DIR, layout["file"])).convert("RGB")
     draw = ImageDraw.Draw(im)
 
+    bounds = story_layout.pill_bounds(im.width)
+    scale = bounds["scale"]
+
     if _TEXT_FONT_PATH:
-        text_font = ImageFont.truetype(_TEXT_FONT_PATH, 22)
+        text_font = ImageFont.truetype(_TEXT_FONT_PATH, round(22 * scale))
     else:
-        text_font = ImageFont.load_default(size=22)
+        text_font = ImageFont.load_default(size=round(22 * scale))
 
     for i, name in enumerate(layout["rows"]):
-        box = _pill_box(i)
+        box = _pill_box(i, bounds)
         group = await db.get_group_by_name_time_pattern(conn, name, day_pattern, time)
         if group is None:
             # Рядок міг бути показаний у цьому кадрі суто декоративно (наприклад,
@@ -289,7 +305,7 @@ async def build_story_image(
                 continue
 
         if group["locked"]:
-            _draw_pill(im, draw, box, "🔒", None, None, text_font, row_index=i)
+            _draw_pill(im, draw, box, "🔒", None, None, text_font, row_index=i, scale=scale, pill_width=im.width)
             continue
 
         resp = await db.get_response(conn, group["id"], lesson_date)
@@ -298,7 +314,7 @@ async def build_story_image(
 
         status_key = resp["status_key"]
         emoji_char, text, mode = _STORY_CONTENT.get(status_key, (None, None, None))
-        _draw_pill(im, draw, box, emoji_char, text, mode, text_font, row_index=i)
+        _draw_pill(im, draw, box, emoji_char, text, mode, text_font, row_index=i, scale=scale, pill_width=im.width)
 
     im.save(out_path)
     return out_path

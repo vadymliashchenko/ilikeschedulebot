@@ -34,7 +34,8 @@ async def job_start_poll(bot: Bot, conn: aiosqlite.Connection) -> None:
             f"Який статус завтрашнього заняття?"
         )
         kb = keyboards.status_keyboard(g["id"], lesson_date.isoformat())
-        await bot.send_message(config.CHOREO_GROUP_CHAT_ID, text, reply_markup=kb)
+        await bot.send_message(config.CHOREO_GROUP_CHAT_ID, text, reply_markup=kb,
+                                message_thread_id=config.SCHEDULE_TOPIC_ID)
     logger.info("Poll started for %s: %d groups", lesson_date, len(groups))
 
 
@@ -47,7 +48,8 @@ async def job_reminder(bot: Bot, conn: aiosqlite.Connection) -> None:
     cat = random.choice(config.CAT_EMOJI)
     lines = [f"не отримали ще відповідь від цих котиків {cat}"]
     lines += [f"- {name}" for name in names]
-    await bot.send_message(config.CHOREO_GROUP_CHAT_ID, "\n".join(lines))
+    await bot.send_message(config.CHOREO_GROUP_CHAT_ID, "\n".join(lines),
+                            message_thread_id=config.TEAM_CHAT_TOPIC_ID)
 
 
 async def job_final_table(bot: Bot, conn: aiosqlite.Connection) -> None:
@@ -85,7 +87,8 @@ async def job_final_table(bot: Bot, conn: aiosqlite.Connection) -> None:
     internal_text = table_builder.build_internal_table(
         lesson_date, locked, upcoming, pollable, responses_by_group
     )
-    await bot.send_message(config.CHOREO_GROUP_CHAT_ID, internal_text)
+    await bot.send_message(config.CHOREO_GROUP_CHAT_ID, internal_text,
+                            message_thread_id=config.SCHEDULE_TOPIC_ID)
 
     if config.INSTAGRAM_CHAT_ID:
         await send_story_images(bot, conn, lesson_date)
@@ -127,7 +130,8 @@ async def send_story_images(bot: Bot, conn: aiosqlite.Connection, lesson_date: d
                 f"Макети сторіс на {lesson_date.strftime('%d.%m')}. Якщо є помилка - напишіть "
                 f"виправлення і додайте /переробити."
             )
-        await bot.send_document(config.INSTAGRAM_CHAT_ID, FSInputFile(path), caption=caption)
+        await bot.send_document(config.INSTAGRAM_CHAT_ID, FSInputFile(path), caption=caption,
+                                 message_thread_id=config.SCHEDULE_TOPIC_ID)
 
 
 async def job_monthly_reconciliation(bot: Bot, conn: aiosqlite.Connection) -> None:
