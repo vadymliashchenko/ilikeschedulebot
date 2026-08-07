@@ -34,7 +34,15 @@ _PILL_BOUNDS_BY_WIDTH = {
 
 
 def pill_bounds(image_width: int) -> dict:
-    return _PILL_BOUNDS_BY_WIDTH[image_width]
+    try:
+        return _PILL_BOUNDS_BY_WIDTH[image_width]
+    except KeyError:
+        supported = sorted(_PILL_BOUNDS_BY_WIDTH)
+        raise ValueError(
+            f"Немає виміряних меж пігулки для ширини {image_width}px - підтримуються лише "
+            f"{supported}. Якщо додано новий шаблон іншого розміру, потрібно виміряти й додати "
+            f"новий запис у _PILL_BOUNDS_BY_WIDTH."
+        ) from None
 
 STORY_LAYOUTS = {
     ("mon_thu", "17:00"): {

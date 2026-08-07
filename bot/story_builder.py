@@ -343,6 +343,12 @@ async def build_day_images(
     for pattern, time in slots:
         safe_time = time.replace(":", "_")
         img_path = os.path.join(out_dir, f"{lesson_date.isoformat()}_{pattern}_{safe_time}.png")
-        await build_story_image(conn, pattern, time, lesson_date, img_path)
+        try:
+            await build_story_image(conn, pattern, time, lesson_date, img_path)
+        except ValueError:
+            # Непідтримувана роздільна здатність шаблону - не рвемо решту дня
+            # через одне зображення, просто пропускаємо і йдемо далі.
+            logger.exception("Не вдалося згенерувати макет %s %s на %s", pattern, time, lesson_date)
+            continue
         paths.append(img_path)
     return paths
