@@ -284,6 +284,17 @@ async def get_choreographer_by_telegram_id(
     return row["choreographer"] if row else None
 
 
+async def get_telegram_id_by_choreographer(
+    conn: aiosqlite.Connection, choreographer: str
+) -> Optional[int]:
+    cur = await conn.execute(
+        "SELECT telegram_user_id FROM choreographer_links WHERE choreographer = ?",
+        (choreographer,),
+    )
+    row = await cur.fetchone()
+    return row["telegram_user_id"] if row else None
+
+
 async def is_choreographer_linked(conn: aiosqlite.Connection, choreographer: str) -> bool:
     cur = await conn.execute(
         "SELECT 1 FROM choreographer_links WHERE choreographer = ?", (choreographer,)

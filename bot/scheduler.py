@@ -4,6 +4,7 @@ import random
 
 import aiosqlite
 from aiogram import Bot
+from aiogram.exceptions import TelegramForbiddenError
 from aiogram.types import FSInputFile
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -23,20 +24,39 @@ def _tomorrow() -> dt.date:
 
 
 async def job_start_poll(bot: Bot, conn: aiosqlite.Connection) -> None:
+    # Опитування йде кожному хореографу окремо в його приватний чат з ботом
+    # (не в спільну групу), щоб не дратувати тих, хто не веде занять того дня.
     lesson_date = _tomorrow()
     groups = await db.get_pollable_groups_for_date(conn, lesson_date)
+    sent = 0
+    unreachable: set[str] = set()
     for g in groups:
         existing = await db.get_response(conn, g["id"], lesson_date)
         if existing is not None:
             continue
-        text = (
-            f"🗓 {g['choreographer']} - {g['style']} о {g['time']}\n"
-            f"Який статус завтрашнього заняття?"
-        )
+
+        telegram_id = await db.get_telegram_id_by_choreographer(conn, g["choreographer"])
+        if telegram_id is None:
+            unreachable.add(g["choreographer"])
+            continue
+
+        text = f"🗓 {g['style']} о {g['time']}\nЯкий статус завтрашнього заняття?"
         kb = keyboards.status_keyboard(g["id"], lesson_date.isoformat())
-        await bot.send_message(config.CHOREO_GROUP_CHAT_ID, text, reply_markup=kb,
-                                message_thread_id=config.SCHEDULE_TOPIC_ID)
-    logger.info("Poll started for %s: %d groups", lesson_date, len(groups))
+        try:
+            await bot.send_message(telegram_id, text, reply_markup=kb)
+            sent += 1
+        except TelegramForbiddenError:
+            # Хореограф заблокував бота або ще не писав йому в приваті.
+            unreachable.add(g["choreographer"])
+
+    if unreachable:
+        names = ", ".join(sorted(unreachable))
+        await bot.send_message(
+            config.OWNER_CHAT_ID,
+            f"⚠️ Не вдалось надіслати опитування на {lesson_date} цим хореографам "
+            f"(треба щоб вони написали боту /start у приватному чаті): {names}",
+        )
+    logger.info("Poll started for %s: %d sent, %d unreachable", lesson_date, sent, len(unreachable))
 
 
 async def job_reminder(bot: Bot, conn: aiosqlite.Connection) -> None:

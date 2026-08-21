@@ -21,6 +21,46 @@ async def cmd_chatid(message: Message) -> None:
     await message.answer(text)
 
 
+@router.message(Command("start"), F.chat.type == "private")
+async def cmd_start(message: Message, conn: aiosqlite.Connection) -> None:
+    linked = await db.get_choreographer_by_telegram_id(conn, message.from_user.id)
+    if linked is not None:
+        await message.answer(
+            f"Ви вже підтверджені як {linked}. Опитування щовечора приходитимуть сюди, "
+            f"у цей чат."
+        )
+        return
+    await message.answer(
+        "Вітаю! Щоб опитування про завтрашні заняття приходили вам особисто в цей чат, "
+        "оберіть, будь ласка, своє ім'я зі списку:",
+        reply_markup=keyboards.choreographer_list_keyboard("linkme"),
+    )
+
+
+@router.callback_query(F.data.startswith("linkme:name:"))
+async def handle_linkme(callback: CallbackQuery, conn: aiosqlite.Connection) -> None:
+    choreographer = callback.data.split(":", 2)[2]
+
+    already_linked_to = await db.get_choreographer_by_telegram_id(conn, callback.from_user.id)
+    if already_linked_to is not None:
+        await callback.answer(f"Цей чат вже підтверджений як {already_linked_to}.", show_alert=True)
+        return
+
+    if await db.is_choreographer_linked(conn, choreographer):
+        await callback.answer(
+            "Цей хореограф вже підтверджений іншим чатом. Зверніться до адміністратора.",
+            show_alert=True,
+        )
+        return
+
+    await db.register_choreographer_link(conn, choreographer, callback.from_user.id)
+    await callback.answer(f"Готово, ви - {choreographer}!")
+    await callback.message.edit_text(
+        f"✅ Підтверджено: {choreographer}. Опитування про завтрашні заняття тепер "
+        f"приходитимуть сюди, у цей чат."
+    )
+
+
 @router.callback_query(F.data.startswith("status:"))
 async def handle_status(
     callback: CallbackQuery, conn: aiosqlite.Connection, bot: Bot, state: FSMContext
