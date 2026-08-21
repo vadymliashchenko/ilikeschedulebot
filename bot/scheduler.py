@@ -60,16 +60,40 @@ async def job_start_poll(bot: Bot, conn: aiosqlite.Connection) -> None:
 
 
 async def job_reminder(bot: Bot, conn: aiosqlite.Connection) -> None:
+    # Нагадування теж йде особисто (як і опитування) - з кнопками, щоб можна
+    # було відповісти одразу з цього ж повідомлення.
     lesson_date = _tomorrow()
     missing = await db.get_missing_groups(conn, lesson_date)
     if not missing:
         return
-    names = sorted({g["choreographer"] for g in missing})
+
     cat = random.choice(config.CAT_EMOJI)
-    lines = [f"не отримали ще відповідь від цих котиків {cat}"]
-    lines += [f"- {name}" for name in names]
-    await bot.send_message(config.CHOREO_GROUP_CHAT_ID, "\n".join(lines),
-                            message_thread_id=config.TEAM_CHAT_TOPIC_ID)
+    reminded = 0
+    unreachable: set[str] = set()
+    for g in missing:
+        telegram_id = await db.get_telegram_id_by_choreographer(conn, g["choreographer"])
+        if telegram_id is None:
+            unreachable.add(g["choreographer"])
+            continue
+
+        text = (
+            f"{cat} Нагадування - ви ще не відповіли\n"
+            f"🗓 {g['style']} о {g['time']}\nЯкий статус завтрашнього заняття?"
+        )
+        kb = keyboards.status_keyboard(g["id"], lesson_date.isoformat())
+        try:
+            await bot.send_message(telegram_id, text, reply_markup=kb)
+            reminded += 1
+        except TelegramForbiddenError:
+            unreachable.add(g["choreographer"])
+
+    if unreachable:
+        names = ", ".join(sorted(unreachable))
+        await bot.send_message(
+            config.OWNER_CHAT_ID,
+            f"⚠️ Не вдалось надіслати нагадування на {lesson_date} цим хореографам: {names}",
+        )
+    logger.info("Reminder sent for %s: %d sent, %d unreachable", lesson_date, reminded, len(unreachable))
 
 
 async def job_final_table(bot: Bot, conn: aiosqlite.Connection) -> None:

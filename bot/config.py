@@ -24,17 +24,13 @@ if INSTAGRAM_CHAT_ID:
     INSTAGRAM_CHAT_ID = int(INSTAGRAM_CHAT_ID)
 
 # Якщо CHOREO_GROUP_CHAT_ID/INSTAGRAM_CHAT_ID вказують на форум (групу з гілками-темами),
-# SCHEDULE_TOPIC_ID - id гілки "Schedule" (опитування, таблиця, макети сторіс).
-# TEAM_CHAT_TOPIC_ID - id гілки "Team Chat" (лише нагадування, хто не проголосував -
-# там хореографи спілкуються частіше й швидше побачать). Якщо не задано - постимо
-# в загальний чат/тему (для звичайної групи без гілок).
+# SCHEDULE_TOPIC_ID - id гілки "Schedule" (таблиця, макети сторіс). Якщо не задано -
+# постимо в загальний чат/тему (для звичайної групи без гілок). Опитування й
+# нагадування більше не постяться в групу взагалі - йдуть особисто кожному
+# хореографу в приватний чат.
 SCHEDULE_TOPIC_ID = os.environ.get("SCHEDULE_TOPIC_ID")
 if SCHEDULE_TOPIC_ID:
     SCHEDULE_TOPIC_ID = int(SCHEDULE_TOPIC_ID)
-
-TEAM_CHAT_TOPIC_ID = os.environ.get("TEAM_CHAT_TOPIC_ID")
-if TEAM_CHAT_TOPIC_ID:
-    TEAM_CHAT_TOPIC_ID = int(TEAM_CHAT_TOPIC_ID)
 
 STORY_OUTPUT_DIR = os.environ.get("STORY_OUTPUT_DIR", "generated_stories")
 
@@ -45,7 +41,7 @@ DB_PATH = os.environ.get("DB_PATH", "bot.db")
 
 POLL_START_TIME = "13:00"
 REMINDER_TIME = "14:00"
-TABLE_TIME = "14:30"
+TABLE_TIME = "15:00"
 CLIENT_REPOST_TIME = "21:00"
 
 MAX_CANCELS_PER_MONTH = 2
