@@ -70,7 +70,8 @@ CHOREOGRAPHERS = [
     "Росінська Віка",
     "Сковира Віка",
     "Умрихін Катя",
-    "Тучапець Оля",
+    "Скороділкін Саша",
+    "Остап",
 ]
 
 # Дозволені часові слоти занять
@@ -174,15 +175,17 @@ STATUS_EMOJI_LEGEND = {
 CAT_EMOJI = ["🐱", "🐈", "😺", "😸", "🙀", "😻", "🐈‍⬛"]
 
 # Розклад-патерни. day_pattern визначає, в які дні тижня діє група
-# (кожна група проводиться двічі на тиждень, крім wed_only):
+# (кожна група проводиться двічі на тиждень):
 #   "mon_thu" — понеділок + четвер
 #   "tue_fri" — вівторок + п'ятниця
-#   "wed_only" — тільки середа
+# "wed_only" (тільки середа) видалено зі списку - середу закрито (не було
+# жодної активної групи, крім Каур Єлизавети, яку прибрали). Якщо середу
+# колись відновлять - поверни ключ "wed_only": {2} сюди; шаблон сторіс і
+# прив'язка в story_layout.STORY_LAYOUTS для нього досі є.
 # weekday(): пн=0 ... нд=6
 DAY_PATTERN_WEEKDAYS = {
     "mon_thu": {0, 3},  # групи двічі на тиждень: понеділок + четвер
     "tue_fri": {1, 4},  # групи двічі на тиждень: вівторок + п'ятниця
-    "wed_only": {2},    # групи раз на тиждень: середа
 }
 
 SCHEDULE = [
@@ -197,8 +200,6 @@ SCHEDULE = [
      "style": "Choreography", "level": 1, "hall": "pink", "start_date": "2026-07-27"},
     {"day_pattern": "mon_thu", "time": "18:00", "choreographer": "Мисько Аня",
      "style": "Jazz-Funk", "level": 1, "hall": "green"},
-    {"day_pattern": "mon_thu", "time": "18:00", "choreographer": "Тучапець Оля",
-     "style": "Contemporary", "level": 1, "hall": "white"},
     {"day_pattern": "mon_thu", "time": "18:00", "choreographer": "Умрихін Катя",
      "style": "High Heels", "level": 1, "hall": "blue", "start_date": "2026-07-27"},
     {"day_pattern": "mon_thu", "time": "19:00", "choreographer": "Бучковська Юлія",
@@ -260,7 +261,5 @@ SCHEDULE = [
     {"day_pattern": "tue_fri", "time": "20:00", "choreographer": "Соня Криця",
      "style": "Contemporary", "level": 1, "hall": "green"},
 
-    # --- СР ---
-    {"day_pattern": "wed_only", "time": "18:00", "choreographer": "Каур Єлизавета",
-     "style": "Waacking", "level": 1, "hall": "pink", "start_date": "2026-08-05"},
+    # --- СР --- (порожньо: групу Каур Єлизавети по середах закрито)
 ]
