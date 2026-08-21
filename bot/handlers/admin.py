@@ -57,6 +57,20 @@ async def cmd_links(message: Message, conn: aiosqlite.Connection) -> None:
     await message.answer("\n".join(lines), reply_markup=kb)
 
 
+@router.message(Command("unlinked"))
+async def cmd_unlinked(message: Message, conn: aiosqlite.Connection) -> None:
+    links = await db.get_all_links(conn)
+    linked_names = {row["choreographer"] for row in links}
+    missing = [name for name in config.CHOREOGRAPHERS if name not in linked_names]
+
+    if not missing:
+        await message.answer("Усі хореографи вже підключили приватний чат з ботом. ✅")
+        return
+
+    lines = ["Ще чекаємо на /start у приваті від:"] + [f"- {name}" for name in missing]
+    await message.answer("\n".join(lines))
+
+
 @router.callback_query(F.data.startswith("unlink:"))
 async def cb_unlink(callback: CallbackQuery, conn: aiosqlite.Connection) -> None:
     name = callback.data.split(":", 1)[1]
