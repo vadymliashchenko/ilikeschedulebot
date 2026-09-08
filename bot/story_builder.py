@@ -63,7 +63,6 @@ _TEXT_COLOR = (245, 235, 220)
 # для кожної роздільної здатності шаблонів (720 - "ср", 1080 - решта).
 # (межі пігулки в кожному рядку однакові, тому підміна виглядає безшовно).
 _LOCKED_PILLS_DIR = os.path.join(ASSETS_DIR, "locked_pills")
-_FILMING_PILLS_DIR = os.path.join(ASSETS_DIR, "filming_pills")
 _ROW_COUNT = 5
 
 
@@ -79,23 +78,16 @@ def _load_pill_rows(base_dir: str) -> dict:
     return rows_by_width
 
 
-# Те саме для "зйомка відео" - одна й та сама іконка (без тексту), вирізана
-# разом з пігулкою по кожному з 5 рядків, щоб розмір/пропорції були завжди однакові.
 _LOCKED_PILL_ROWS = _load_pill_rows(_LOCKED_PILLS_DIR)
-_FILMING_PILL_ROWS = _load_pill_rows(_FILMING_PILLS_DIR)
 
 # (емодзі, текст, режим) для кожного статусу.
-# "stacked" - емодзі окремим рядком зверху, текст під ним
 # "large"   - просто текст, без емодзі, трохи більшим шрифтом (акцент)
 # None      - просто текст, без емодзі, звичайний розмір
 _STORY_CONTENT = {
     "first": (None, "НОВА\nХОРЕОГРАФІЯ", "hero"),
-    "second_ok": (None, "МОЖНА\nПРИЄДНАТИСЯ", "right"),
     "open": (None, "МОЖНА\nПРИЄДНАТИСЯ", "right"),
     "closed": (None, "НЕ МОЖНА\nПРИЄДНАТИСЯ", "right"),
-    "second_no": (None, "НЕ МОЖНА\nПРИЄДНАТИСЯ", "right"),
     "last_mk": (None, "ФОРМАТ МК", None),
-    "filming": ("🎬", None, "icon_only"),
     "substitute": (None, "ЗАМІНА", "top_large"),
     "cancelled": (None, "ВІДМІНА", "large"),
 }
@@ -187,13 +179,6 @@ def _draw_pill(im: Image.Image, draw: ImageDraw.ImageDraw, box, emoji_char, text
         return
 
     box_w = (x1 - x0) - s(36)
-
-    if emoji_char == "🎬" and mode == "icon_only":
-        # Так само, як і замок - вставляємо всю пігулку одним готовим зображенням
-        # з однією й тією ж іконкою, а не рендеримо емодзі щоразу наново.
-        pill = _FILMING_PILL_ROWS[pill_width][row_index]
-        im.paste(pill, (x0, y0))
-        return
 
     if emoji_char and text and mode == "stacked":
         emoji_size = s(28)

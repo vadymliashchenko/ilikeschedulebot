@@ -3,7 +3,7 @@ from typing import Optional
 
 from bot import config
 
-_LEGEND_ORDER = ["🆕", "🎦", "🔀", "🎓", "🚫", "🔒"]
+_LEGEND_ORDER = ["🆕", "🔀", "🎓", "🚫", "🔒"]
 
 
 def _format_header_date(d: dt.date) -> str:

@@ -19,7 +19,6 @@ _TRIGGER = "/переробити"
 
 # Порядок важливий: перевіряємо специфічніші/заперечні фрази раніше загальніших.
 _KEYWORD_TO_STATUS = [
-    ("зйомк", "filming"),
     ("замін", "substitute"),
     ("відмін", "cancelled"),
     ("формат мк", "last_mk"),
@@ -28,13 +27,7 @@ _KEYWORD_TO_STATUS = [
     ("нова", "first"),
     ("хореографі", "first"),
     ("не можна", "closed"),
-    ("друге", "second_ok"),
     ("можна", "open"),
-]
-
-# "друге заняття - не можна" - специфічніший випадок, ніж просто "не можна".
-_COMPOUND_KEYWORDS = [
-    ({"друге", "не можна"}, "second_no"),
 ]
 
 
@@ -49,9 +42,6 @@ def _find_choreographer(text: str) -> Optional[str]:
 
 def _find_status(text: str) -> Optional[str]:
     low = text.lower()
-    for keywords, status_key in _COMPOUND_KEYWORDS:
-        if all(kw in low for kw in keywords):
-            return status_key
     for keyword, status_key in _KEYWORD_TO_STATUS:
         if keyword in low:
             return status_key
@@ -78,7 +68,7 @@ async def handle_correction(message: Message, conn: aiosqlite.Connection, bot: B
     if status_key is None:
         await message.reply(
             f"Розпізнав хореографа ({choreographer}), але не зрозумів новий статус. "
-            f"Напишіть словами: можна / не можна / нова хореографія / зйомка / заміна / "
+            f"Напишіть словами: можна / не можна / нова хореографія / заміна / "
             f"відміна / формат мк."
         )
         return
