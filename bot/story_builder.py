@@ -68,7 +68,7 @@ _ROW_COUNT = 5
 
 def _load_pill_rows(base_dir: str) -> dict:
     rows_by_width = {}
-    for width in (720, 1080):
+    for width in (720,):
         subdir = os.path.join(base_dir, str(width))
         if os.path.isdir(subdir):
             rows_by_width[width] = [
@@ -172,10 +172,17 @@ def _draw_pill(im: Image.Image, draw: ImageDraw.ImageDraw, box, emoji_char, text
     box_h = y1 - y0
 
     if emoji_char == "🔒":
-        # Замінюємо всю пігулку картинкою з готовим замком (вирізаною з дизайну
-        # макету), а не малюємо іконку поверх - так межі пігулки завжди чіткі.
-        pill = _LOCKED_PILL_ROWS[pill_width][row_index]
-        im.paste(pill, (x0, y0))
+        if pill_width in _LOCKED_PILL_ROWS:
+            # Замінюємо всю пігулку картинкою з готовим замком (вирізаною з
+            # дизайну макету), а не малюємо іконку поверх - так межі пігулки
+            # завжди чіткі. Це потрібно лише для старих дизайнів з видимою
+            # рамкою пігулки; новіші шаблони такої рамки не мають, тож для них
+            # просто малюємо іконку замка поверх фону (нижче).
+            pill = _LOCKED_PILL_ROWS[pill_width][row_index]
+            im.paste(pill, (x0, y0))
+            return
+        size = s(64)
+        _paste_emoji(im, "🔒", int(center_x), int(y0 + (box_h - size) / 2), size)
         return
 
     box_w = (x1 - x0) - s(36)
@@ -271,7 +278,7 @@ async def build_story_image(
     im = Image.open(os.path.join(ASSETS_DIR, layout["file"])).convert("RGB")
     draw = ImageDraw.Draw(im)
 
-    bounds = story_layout.pill_bounds(im.width)
+    bounds = story_layout.bounds_for(day_pattern, time, im.width)
     scale = bounds["scale"]
 
     if _TEXT_FONT_PATH:
