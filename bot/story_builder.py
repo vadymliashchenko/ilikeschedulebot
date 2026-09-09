@@ -87,7 +87,7 @@ _STORY_CONTENT = {
     "first": (None, "НОВА\nХОРЕОГРАФІЯ", "hero"),
     "open": (None, "МОЖНА\nПРИЄДНАТИСЯ", "right"),
     "closed": (None, "НЕ МОЖНА\nПРИЄДНАТИСЯ", "right"),
-    "last_mk": (None, "ФОРМАТ МК", None),
+    "last_mk": (None, "ФОРМАТ МК", "large"),
     "substitute": (None, "ЗАМІНА", "top_large"),
     "cancelled": (None, "ВІДМІНА", "large"),
 }
@@ -176,13 +176,11 @@ def _draw_pill(im: Image.Image, draw: ImageDraw.ImageDraw, box, emoji_char, text
             # Замінюємо всю пігулку картинкою з готовим замком (вирізаною з
             # дизайну макету), а не малюємо іконку поверх - так межі пігулки
             # завжди чіткі. Це потрібно лише для старих дизайнів з видимою
-            # рамкою пігулки; новіші шаблони такої рамки не мають, тож для них
-            # просто малюємо іконку замка поверх фону (нижче).
+            # рамкою пігулки.
             pill = _LOCKED_PILL_ROWS[pill_width][row_index]
             im.paste(pill, (x0, y0))
-            return
-        size = s(64)
-        _paste_emoji(im, "🔒", int(center_x), int(y0 + (box_h - size) / 2), size)
+        # Новіші шаблони (без рамки під пігулку) вже мають замок намальованим
+        # прямо на фото закритого рядка - додатковий не малюємо, щоб не дублювати.
         return
 
     box_w = (x1 - x0) - s(36)
@@ -204,14 +202,14 @@ def _draw_pill(im: Image.Image, draw: ImageDraw.ImageDraw, box, emoji_char, text
         gap = max(s(3), text_font.size // 4)
         min_big, min_small = s(14), s(10)
 
-        big_font = text_font.font_variant(size=text_font.size + s(14))
+        big_font = text_font.font_variant(size=text_font.size + s(6))
         while True:
             w0, h0, top0 = _ink_size(draw, big_line, big_font)
             if w0 <= box_w or big_font.size <= min_big:
                 break
             big_font = big_font.font_variant(size=big_font.size - 2)
 
-        small_font = text_font.font_variant(size=text_font.size - s(2))
+        small_font = text_font.font_variant(size=text_font.size + s(6))
         while True:
             w1, h1, top1 = _ink_size(draw, small_line, small_font)
             if w1 <= box_w or small_font.size <= min_small:
@@ -238,7 +236,7 @@ def _draw_pill(im: Image.Image, draw: ImageDraw.ImageDraw, box, emoji_char, text
         return
 
     if mode == "top_large" and text:
-        base_font = text_font.font_variant(size=text_font.size + s(10))
+        base_font = text_font.font_variant(size=text_font.size + s(6))
         lines = text.split("\n")
         font, gap = _fit_font(draw, lines, base_font, 0, box_h, box_w, min_size=s(12))
         heights = [_ink_size(draw, ln, font) for ln in lines]
@@ -255,7 +253,7 @@ def _draw_pill(im: Image.Image, draw: ImageDraw.ImageDraw, box, emoji_char, text
             align = "center"
             vertical_offset = s(3)
         elif mode == "right":
-            base_font = text_font.font_variant(size=text_font.size + s(18))
+            base_font = text_font.font_variant(size=text_font.size + s(6))
             align = "right"
             right_margin = s(8)
             box_w = (x1 - x0) - 2 * right_margin
