@@ -28,6 +28,8 @@ The de facto way to validate changes to `bot/story_builder.py` (image generation
 
 Deploys are git-push-triggered on Railway (auto-deploys `main`). This repo has no CI — pushing to `main` is the only "build" step, and it goes live immediately.
 
+Before touching `assets/story_templates/*`, `bot/story_layout.py`, or `bot/story_builder.py`, read [LEARNINGS.md](LEARNINGS.md) — it records the user's already-confirmed rules for the current template geometry and design (row-bound measurement method, centering, font sizing, lock-icon handling) so they aren't relitigated or accidentally reverted.
+
 ## Architecture
 
 ### Data flow
