@@ -21,12 +21,6 @@ _TEXT_FONT_CANDIDATES = [
     os.path.join(FONTS_DIR, "DejaVuSans-Bold.ttf"),
     "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
 ]
-_EMOJI_FONT_CANDIDATES = [
-    os.path.join(FONTS_DIR, "NotoColorEmoji.ttf"),
-    "/System/Library/Fonts/Apple Color Emoji.ttc",
-]
-
-
 def _find_font(candidates: list[str]) -> Optional[str]:
     for pattern in candidates:
         matches = glob.glob(pattern, recursive=True)
@@ -37,24 +31,9 @@ def _find_font(candidates: list[str]) -> Optional[str]:
     return None
 
 
-def _find_supported_emoji_size(font_path: str) -> int:
-    """CBDT/sbix-шрифти мають лише кілька "фіксованих" розмірів. Знаходимо перший робочий."""
-    for size in list(range(16, 180)):
-        try:
-            ImageFont.truetype(font_path, size)
-            return size
-        except OSError:
-            continue
-    return 48
-
-
 _TEXT_FONT_PATH = _find_font(_TEXT_FONT_CANDIDATES)
-_EMOJI_FONT_PATH = _find_font(_EMOJI_FONT_CANDIDATES)
-_EMOJI_SOURCE_SIZE = _find_supported_emoji_size(_EMOJI_FONT_PATH) if _EMOJI_FONT_PATH else 48
 if _TEXT_FONT_PATH is None:
     logger.warning("No bold text font found for story images - falling back to PIL default")
-if _EMOJI_FONT_PATH is None:
-    logger.warning("No color emoji font found for story images - icons will be skipped")
 
 _TEXT_COLOR = (245, 235, 220)
 
@@ -80,16 +59,19 @@ def _load_pill_rows(base_dir: str) -> dict:
 
 _LOCKED_PILL_ROWS = _load_pill_rows(_LOCKED_PILLS_DIR)
 
-# (емодзі, текст, режим) для кожного статусу.
-# "large"   - просто текст, без емодзі, трохи більшим шрифтом (акцент)
-# None      - просто текст, без емодзі, звичайний розмір
+# Текст для кожного статусу - усі малюються ОДНИМ стилем (див. _draw_status_text):
+# однаковий розмір шрифту, притиснуто до правого краю, по вертикальному центру
+# рядка. Звірено з реальними опублікованими сторіс (еталонні скріншоти від
+# користувача, 2026-09-09) - там кожен статус, включно з "новою хореографією",
+# виглядає ідентично за розміром/вирівнюванням, без жодного акценту чи іншого
+# розміру для якогось одного статусу.
 _STORY_CONTENT = {
-    "first": (None, "НОВА\nХОРЕОГРАФІЯ", "hero"),
-    "open": (None, "МОЖНА\nПРИЄДНАТИСЯ", "right"),
-    "closed": (None, "НЕ МОЖНА\nПРИЄДНАТИСЯ", "right"),
-    "last_mk": (None, "ФОРМАТ МК", "large"),
-    "substitute": (None, "ЗАМІНА", "top_large"),
-    "cancelled": (None, "ВІДМІНА", "large"),
+    "first": "НОВА\nХОРЕОГРАФІЯ",
+    "open": "МОЖНА\nПРИЄДНАТИСЯ",
+    "closed": "НЕ МОЖНА\nПРИЄДНАТИСЯ",
+    "last_mk": "ФОРМАТ МК",
+    "substitute": "ЗАМІНА",
+    "cancelled": "ВІДМІНА",
 }
 
 
@@ -99,24 +81,6 @@ def _pill_box(row_index: int, bounds: dict) -> tuple[int, int, int, int]:
     return (x0, y0, x1, y1)
 
 
-
-
-def _render_emoji(char: str, target_size: int) -> Image.Image:
-    font = ImageFont.truetype(_EMOJI_FONT_PATH, _EMOJI_SOURCE_SIZE)
-    tmp = Image.new("RGBA", (_EMOJI_SOURCE_SIZE * 2, _EMOJI_SOURCE_SIZE * 2), (0, 0, 0, 0))
-    d = ImageDraw.Draw(tmp)
-    d.text((0, 0), char, font=font, embedded_color=True)
-    bbox = tmp.getbbox()
-    if bbox:
-        tmp = tmp.crop(bbox)
-    return tmp.resize((target_size, target_size), Image.LANCZOS)
-
-
-def _paste_emoji(im: Image.Image, char: str, center_x: int, top_y: int, size: int) -> None:
-    if _EMOJI_FONT_PATH is None:
-        return  # немає кольорового emoji-шрифту на цьому сервері - пропускаємо іконку
-    glyph = _render_emoji(char, size)
-    im.paste(glyph, (int(center_x - size / 2), int(top_y)), glyph)
 
 
 def _ink_size(draw: ImageDraw.ImageDraw, text: str, font) -> tuple[int, int, int]:
@@ -162,111 +126,38 @@ def _draw_lines_aligned(draw: ImageDraw.ImageDraw, box, lines: list[str], height
         y += h + gap
 
 
-def _draw_pill(im: Image.Image, draw: ImageDraw.ImageDraw, box, emoji_char, text, mode, text_font,
-               row_index: Optional[int] = None, scale: float = 1.0, pill_width: int = 720) -> None:
+def _draw_locked_pill(im: Image.Image, box, row_index: int, pill_width: int) -> None:
+    if pill_width not in _LOCKED_PILL_ROWS:
+        # Новіші шаблони (без рамки під пігулку) вже мають замок намальованим
+        # прямо на фото закритого рядка - додатковий не малюємо, щоб не дублювати.
+        return
+    # Замінюємо всю пігулку картинкою з готовим замком (вирізаною з дизайну
+    # макету), а не малюємо іконку поверх - так межі пігулки завжди чіткі.
+    # Це потрібно лише для старих дизайнів з видимою рамкою пігулки.
+    x0, y0, _, _ = box
+    im.paste(_LOCKED_PILL_ROWS[pill_width][row_index], (x0, y0))
+
+
+def _draw_status_text(im: Image.Image, draw: ImageDraw.ImageDraw, box, text: str, text_font,
+                       scale: float = 1.0) -> None:
+    """Єдиний стиль для всіх статусів: однаковий розмір, притиснуто до правого
+    краю, по вертикальному центру рядка (звірено з реальними опублікованими
+    сторіс - там немає жодних відмінностей у розмірі/вирівнюванні між статусами)."""
     def s(px: float) -> int:
         return round(px * scale)
 
     x0, y0, x1, y1 = box
-    center_x = x0 + (x1 - x0) / 2
     box_h = y1 - y0
+    right_margin = s(8)
+    box_w = (x1 - x0) - 2 * right_margin
 
-    if emoji_char == "🔒":
-        if pill_width in _LOCKED_PILL_ROWS:
-            # Замінюємо всю пігулку картинкою з готовим замком (вирізаною з
-            # дизайну макету), а не малюємо іконку поверх - так межі пігулки
-            # завжди чіткі. Це потрібно лише для старих дизайнів з видимою
-            # рамкою пігулки.
-            pill = _LOCKED_PILL_ROWS[pill_width][row_index]
-            im.paste(pill, (x0, y0))
-        # Новіші шаблони (без рамки під пігулку) вже мають замок намальованим
-        # прямо на фото закритого рядка - додатковий не малюємо, щоб не дублювати.
-        return
-
-    box_w = (x1 - x0) - s(36)
-
-    if emoji_char and text and mode == "stacked":
-        emoji_size = s(28)
-        lines = text.split("\n")
-        font, gap = _fit_font(draw, lines, text_font, emoji_size, box_h, box_w, min_size=s(12))
-        heights = [_ink_size(draw, ln, font) for ln in lines]
-        total_h = emoji_size + gap + gap * (len(lines) - 1) + sum(h for _, h, _ in heights)
-        y = y0 + (box_h - total_h) / 2
-        _paste_emoji(im, emoji_char, int(center_x), int(y), emoji_size)
-        y += emoji_size + gap
-        _draw_lines_aligned(draw, box, lines, heights, font, y, gap)
-        return
-
-    if mode == "hero" and text:
-        big_line, small_line = text.split("\n")
-        gap = max(s(3), text_font.size // 4)
-        min_big, min_small = s(14), s(10)
-
-        big_font = text_font.font_variant(size=text_font.size + s(6))
-        while True:
-            w0, h0, top0 = _ink_size(draw, big_line, big_font)
-            if w0 <= box_w or big_font.size <= min_big:
-                break
-            big_font = big_font.font_variant(size=big_font.size - 2)
-
-        small_font = text_font.font_variant(size=text_font.size + s(6))
-        while True:
-            w1, h1, top1 = _ink_size(draw, small_line, small_font)
-            if w1 <= box_w or small_font.size <= min_small:
-                break
-            small_font = small_font.font_variant(size=small_font.size - 2)
-
-        # окремо перевіряємо, що обидва рядки разом влазять і по висоті
-        # (стискаємо тільки великий рядок - малий вже підібраний під свою ширину)
-        while True:
-            w0, h0, top0 = _ink_size(draw, big_line, big_font)
-            w1, h1, top1 = _ink_size(draw, small_line, small_font)
-            total_h = h0 + gap + h1
-            if total_h <= box_h or big_font.size <= min_big:
-                break
-            big_font = big_font.font_variant(size=big_font.size - 2)
-
-        w0, h0, top0 = _ink_size(draw, big_line, big_font)
-        w1, h1, top1 = _ink_size(draw, small_line, small_font)
-        total_h = h0 + gap + h1
-        y = y0 + (box_h - total_h) / 2
-        draw.text((center_x - w0 / 2, y - top0), big_line, font=big_font, fill=_TEXT_COLOR)
-        y += h0 + gap
-        draw.text((center_x - w1 / 2, y - top1), small_line, font=small_font, fill=_TEXT_COLOR)
-        return
-
-    if mode == "top_large" and text:
-        base_font = text_font.font_variant(size=text_font.size + s(6))
-        lines = text.split("\n")
-        font, gap = _fit_font(draw, lines, base_font, 0, box_h, box_w, min_size=s(12))
-        heights = [_ink_size(draw, ln, font) for ln in lines]
-        top_margin = s(14)
-        _draw_lines_aligned(draw, box, lines, heights, font, y0 + top_margin, gap, align="center")
-        return
-
-    if text:
-        right_margin = s(18)
-        center_offset = 0
-        vertical_offset = 0
-        if mode == "large":
-            base_font = text_font.font_variant(size=text_font.size + s(6))
-            align = "center"
-            vertical_offset = s(3)
-        elif mode == "right":
-            base_font = text_font.font_variant(size=text_font.size + s(6))
-            align = "right"
-            right_margin = s(8)
-            box_w = (x1 - x0) - 2 * right_margin
-        else:
-            base_font = text_font
-            align = "center"
-        lines = text.split("\n")
-        font, gap = _fit_font(draw, lines, base_font, 0, box_h, box_w, min_size=s(12))
-        heights = [_ink_size(draw, ln, font) for ln in lines]
-        total_h = sum(h for _, h, _ in heights) + gap * (len(lines) - 1)
-        y = y0 + (box_h - total_h) / 2 + vertical_offset
-        _draw_lines_aligned(draw, box, lines, heights, font, y, gap, align=align, right_margin=right_margin,
-                             center_offset=center_offset)
+    base_font = text_font.font_variant(size=text_font.size + s(6))
+    lines = text.split("\n")
+    font, gap = _fit_font(draw, lines, base_font, 0, box_h, box_w, min_size=s(12))
+    heights = [_ink_size(draw, ln, font) for ln in lines]
+    total_h = sum(h for _, h, _ in heights) + gap * (len(lines) - 1)
+    y = y0 + (box_h - total_h) / 2
+    _draw_lines_aligned(draw, box, lines, heights, font, y, gap, align="right", right_margin=right_margin)
 
 
 async def build_story_image(
@@ -295,16 +186,24 @@ async def build_story_image(
                 continue
 
         if group["locked"]:
-            _draw_pill(im, draw, box, "🔒", None, None, text_font, row_index=i, scale=scale, pill_width=im.width)
+            _draw_locked_pill(im, box, i, im.width)
+            continue
+
+        if group["start_date"] and group["start_date"] > lesson_date.isoformat():
+            # Група ще не стартувала - на реальних сторіс це показано як
+            # "СТАРТ ДД.ММ" (той самий стиль, що й решта статусів), а не
+            # порожнім рядком.
+            start = dt.date.fromisoformat(group["start_date"])
+            _draw_status_text(im, draw, box, f"СТАРТ\n{start.day:02d}.{start.month:02d}", text_font, scale=scale)
             continue
 
         resp = await db.get_response(conn, group["id"], lesson_date)
         if resp is None:
             continue  # немає відповіді - пігулку лишаємо порожньою
 
-        status_key = resp["status_key"]
-        emoji_char, text, mode = _STORY_CONTENT.get(status_key, (None, None, None))
-        _draw_pill(im, draw, box, emoji_char, text, mode, text_font, row_index=i, scale=scale, pill_width=im.width)
+        text = _STORY_CONTENT.get(resp["status_key"])
+        if text is not None:
+            _draw_status_text(im, draw, box, text, text_font, scale=scale)
 
     im.save(out_path)
     return out_path
