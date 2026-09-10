@@ -17,7 +17,13 @@ FONTS_DIR = os.path.join(os.path.dirname(__file__), "..", "assets", "fonts")
 
 # Шрифти лежать прямо в репозиторії (assets/fonts) - тому однаково працюють
 # і локально на Mac, і на сервері Railway, незалежно від системних шрифтів.
+# TeXGyreAdventor-Bold - шрифт, підібраний користувачем як заміна Myriad Pro
+# (справжнього шрифту з PSD-макету статусів, комерційного й недоступного тут);
+# ця складка (веб-шрифт-кіт, 2023) на відміну від оригінального .otf з 2009
+# має повну кирилицю - перевірено окремо (fonttools cmap), перевага перед
+# DejaVuSans-Bold, який лишається лише резервним варіантом.
 _TEXT_FONT_CANDIDATES = [
+    os.path.join(FONTS_DIR, "TeXGyreAdventor-Bold.ttf"),
     os.path.join(FONTS_DIR, "DejaVuSans-Bold.ttf"),
     "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
 ]
