@@ -147,16 +147,19 @@ def _draw_locked_pill(im: Image.Image, box, row_index: int, pill_width: int) -> 
 
 def _draw_status_text(im: Image.Image, draw: ImageDraw.ImageDraw, box, text: str, text_font,
                        scale: float = 1.0) -> None:
-    """Єдиний стиль для всіх статусів: однаковий розмір, притиснуто до правого
-    краю, по вертикальному центру рядка (звірено з реальними опублікованими
-    сторіс - там немає жодних відмінностей у розмірі/вирівнюванні між статусами)."""
+    """Єдиний стиль для всіх статусів: однаковий розмір, по ГОРИЗОНТАЛЬНОМУ і
+    вертикальному центру зони. Звірено з PSD-макетом розмітки статусів від
+    дизайнера (2026-09-10) - усі 5 прикладів мають майже ІДЕНТИЧНИЙ X-центр
+    тексту (~1016px з 1275, розбіжність <1px), а не спільний правий край
+    (праві краї відрізняються на 60-90px) - це однозначно center-alignment,
+    не right-alignment, яке малювалось раніше."""
     def s(px: float) -> int:
         return round(px * scale)
 
     x0, y0, x1, y1 = box
     box_h = y1 - y0
-    right_margin = s(8)
-    box_w = (x1 - x0) - 2 * right_margin
+    side_margin = s(8)
+    box_w = (x1 - x0) - 2 * side_margin
 
     base_font = text_font.font_variant(size=text_font.size + s(6))
     lines = text.split("\n")
@@ -164,7 +167,7 @@ def _draw_status_text(im: Image.Image, draw: ImageDraw.ImageDraw, box, text: str
     heights = [_ink_size(draw, ln, font) for ln in lines]
     total_h = sum(h for _, h, _ in heights) + gap * (len(lines) - 1)
     y = y0 + (box_h - total_h) / 2
-    _draw_lines_aligned(draw, box, lines, heights, font, y, gap, align="right", right_margin=right_margin)
+    _draw_lines_aligned(draw, box, lines, heights, font, y, gap, align="center")
 
 
 async def build_story_image(
