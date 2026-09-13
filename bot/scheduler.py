@@ -193,9 +193,10 @@ async def job_monthly_reconciliation(bot: Bot, conn: aiosqlite.Connection) -> No
         lines.append(name)
         cancels = subs = 0
         for e in entries:
-            info = config.STATUSES[e["status_key"]]
+            info = config.STATUSES.get(e["status_key"])
+            label = info["label"] if info else e["status_key"]  # застарілий/видалений статус
             d = dt.date.fromisoformat(e["lesson_date"])
-            lines.append(f"{d.day:02d}.{d.month:02d} – {e['time']} – {info['label']}")
+            lines.append(f"{d.day:02d}.{d.month:02d} – {e['time']} – {label}")
             if e["status_key"] == "cancelled":
                 cancels += 1
             elif e["status_key"] == "substitute":

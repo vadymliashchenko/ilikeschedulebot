@@ -56,14 +56,21 @@ def _build_rows(lesson_date: dt.date, locked_groups, upcoming_groups, pollable_g
             status_line = None if client_version else "⚠️ хореограф ще не відповів"
         else:
             status_key = resp["status_key"]
-            info = config.STATUSES[status_key]
-            if status_key == "substitute" and resp["extra_name"]:
+            info = config.STATUSES.get(status_key)
+            if info is None:
+                # Відповідь збережена ще до видалення якогось статусу зі
+                # STATUSES (напр. стара "друге заняття"/"зйомка відео") -
+                # показуємо як "не відповів", а не падаємо з KeyError.
+                used_emoji.add("⚠️")
+                status_line = None if client_version else "⚠️ застарілий статус, перепитайте хореографа"
+            elif status_key == "substitute" and resp["extra_name"]:
                 status_line = f"🔀 ЗАМІНА, {resp['extra_name']}, можна приєднатися"
             else:
                 status_line = info["phrase"]
-            for e in _LEGEND_ORDER:
-                if e in status_line:
-                    used_emoji.add(e)
+            if status_line:
+                for e in _LEGEND_ORDER:
+                    if e in status_line:
+                        used_emoji.add(e)
         entries.append((g["time"], _row(g["hall"], g["choreographer"], style_line, status_line)))
 
     entries.sort(key=lambda x: x[0])
