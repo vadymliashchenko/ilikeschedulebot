@@ -37,6 +37,23 @@ async def cmd_client_now(message: Message, conn: aiosqlite.Connection, bot: Bot)
     await message.answer("Перепост у клієнтську групу виконано вручну (якщо ввімкнено).")
 
 
+@router.message(Command("syncroster"))
+async def cmd_sync_roster(message: Message, conn: aiosqlite.Connection) -> None:
+    result = await db.resync_groups_from_config(conn)
+    added, updated, deactivated = result["added"], result["updated"], result["deactivated"]
+    if not (added or updated or deactivated):
+        await message.answer("База вже відповідає config.py - розбіжностей не знайдено.")
+        return
+    lines = ["Синхронізацію бази з config.py завершено:"]
+    if added:
+        lines.append(f"➕ Додано ({len(added)}):\n" + "\n".join(f"- {x}" for x in added))
+    if updated:
+        lines.append(f"✏️ Оновлено ({len(updated)}):\n" + "\n".join(f"- {x}" for x in updated))
+    if deactivated:
+        lines.append(f"➖ Вимкнено ({len(deactivated)}):\n" + "\n".join(f"- {x}" for x in deactivated))
+    await message.answer("\n\n".join(lines))
+
+
 @router.message(Command("links"))
 async def cmd_links(message: Message, conn: aiosqlite.Connection) -> None:
     links = await db.get_all_links(conn)

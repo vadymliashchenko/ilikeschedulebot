@@ -359,6 +359,63 @@ async def edit_group(
     await conn.commit()
 
 
+async def resync_groups_from_config(conn: aiosqlite.Connection) -> dict:
+    """Reconcile the live `groups` table against config.SCHEDULE.
+
+    config.SCHEDULE only ever seeds the DB once, when the table is empty
+    (`_seed_groups_if_empty`) - later edits to config.py (add/remove/change a
+    group) never reach an already-seeded DB on their own, and `/admin`'s
+    add/edit flow can't set level/hall/locked/start_date at all. Both gaps let
+    the live roster silently drift from config.py over time (stale "ghost"
+    groups the owner meant to remove, missing new groups, wrong stars/halls).
+    Matches by (choreographer, day_pattern, time) - config.py's stable identity
+    for a slot - and is safe to run repeatedly: existing `responses` rows are
+    untouched (foreign key to group id, never rewritten), removed groups are
+    soft-deactivated (`active=0`) like `deactivate_group` does, never deleted.
+    """
+    cur = await conn.execute("SELECT * FROM groups WHERE active = 1")
+    db_by_key = {(r["choreographer"], r["day_pattern"], r["time"]): r for r in await cur.fetchall()}
+    config_by_key = {
+        (e["choreographer"], e["day_pattern"], e["time"]): e for e in config.SCHEDULE
+    }
+
+    added, updated, deactivated = [], [], []
+
+    for key, entry in config_by_key.items():
+        choreographer, day_pattern, time = key
+        style = entry["style"]
+        level = entry.get("level")
+        hall = entry.get("hall")
+        locked = int(entry.get("locked", False))
+        start_date = entry.get("start_date")
+        row = db_by_key.get(key)
+        if row is None:
+            await conn.execute(
+                """INSERT INTO groups
+                   (choreographer, style, time, level, hall, locked, day_pattern, start_date, active)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)""",
+                (choreographer, style, time, level, hall, locked, day_pattern, start_date),
+            )
+            added.append(f"{choreographer} {day_pattern} {time}")
+        elif (
+            row["style"] != style or row["level"] != level or row["hall"] != hall
+            or row["locked"] != locked or row["start_date"] != start_date
+        ):
+            await conn.execute(
+                "UPDATE groups SET style=?, level=?, hall=?, locked=?, start_date=? WHERE id=?",
+                (style, level, hall, locked, start_date, row["id"]),
+            )
+            updated.append(f"{choreographer} {day_pattern} {time}")
+
+    for key, row in db_by_key.items():
+        if key not in config_by_key:
+            await conn.execute("UPDATE groups SET active = 0 WHERE id = ?", (row["id"],))
+            deactivated.append(f"{row['choreographer']} {row['day_pattern']} {row['time']} ({row['style']})")
+
+    await conn.commit()
+    return {"added": added, "updated": updated, "deactivated": deactivated}
+
+
 async def get_active_groups(conn: aiosqlite.Connection) -> list[aiosqlite.Row]:
     cur = await conn.execute(
         "SELECT * FROM groups WHERE active = 1 ORDER BY choreographer, time"
