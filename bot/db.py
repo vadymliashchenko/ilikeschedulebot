@@ -215,6 +215,17 @@ async def count_missed_polls_this_month(
     return row["c"]
 
 
+async def get_recent_missed_polls(
+    conn: aiosqlite.Connection, since: dt.date
+) -> list[aiosqlite.Row]:
+    cur = await conn.execute(
+        """SELECT choreographer, lesson_date FROM missed_polls
+           WHERE lesson_date >= ? ORDER BY choreographer, lesson_date""",
+        (since.isoformat(),),
+    )
+    return await cur.fetchall()
+
+
 async def count_status_for_group_month(
     conn: aiosqlite.Connection, group_id: int, status_key: str, year_month: str
 ) -> int:

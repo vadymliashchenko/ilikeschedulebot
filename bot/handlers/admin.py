@@ -1,3 +1,4 @@
+import datetime as dt
 import logging
 
 import aiosqlite
@@ -85,6 +86,41 @@ async def cmd_unlinked(message: Message, conn: aiosqlite.Connection) -> None:
         return
 
     lines = ["Ще чекаємо на /start у приваті від:"] + [f"- {name}" for name in missing]
+    await message.answer("\n".join(lines))
+
+
+@router.message(Command("pollcheck"))
+async def cmd_poll_check(message: Message, conn: aiosqlite.Connection) -> None:
+    """Перевірка за останні 14 днів: (1) кому опитування взагалі не доходить
+    (не прив'язаний Telegram), (2) хто отримував опитування, але не відповів."""
+    links = await db.get_all_links(conn)
+    linked_names = {row["choreographer"] for row in links}
+    unlinked = [name for name in config.CHOREOGRAPHERS if name not in linked_names]
+
+    since = dt.datetime.now(config.TZ).date() - dt.timedelta(days=14)
+    missed_rows = await db.get_recent_missed_polls(conn, since)
+    missed_by_name: dict[str, list[str]] = {}
+    for row in missed_rows:
+        missed_by_name.setdefault(row["choreographer"], []).append(row["lesson_date"])
+
+    lines = [f"📋 Перевірка опитувань за останні 14 днів (з {since.strftime('%d.%m')}):"]
+
+    lines.append("")
+    if unlinked:
+        lines.append(f"🚫 Опитування НЕ доходить взагалі ({len(unlinked)}) - треба, щоб написали /start боту в приваті:")
+        lines.extend(f"- {name}" for name in unlinked)
+    else:
+        lines.append("✅ Усі хореографи прив'язані - опитування технічно доходить усім.")
+
+    lines.append("")
+    if missed_by_name:
+        lines.append(f"⚠️ Отримували опитування, але не відповіли хоч раз ({len(missed_by_name)}):")
+        for name, dates in sorted(missed_by_name.items()):
+            dates_str = ", ".join(dt.date.fromisoformat(d).strftime("%d.%m") for d in dates)
+            lines.append(f"- {name} ({len(dates)}x): {dates_str}")
+    else:
+        lines.append("✅ За останні 14 днів усі, кому приходило опитування, відповіли.")
+
     await message.answer("\n".join(lines))
 
 

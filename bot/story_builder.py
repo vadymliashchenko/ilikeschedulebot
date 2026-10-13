@@ -81,6 +81,12 @@ _STORY_CONTENT = {
     "cancelled": "ВІДМІНА",
 }
 
+# 2026-09-17: лише статус "заміна" підняти трохи вище в межах свого рядка -
+# користувач явно попросив НЕ чіпати решту статусів (зокрема "ФОРМАТ МК").
+# Перевірено тестовим зображенням (tue_fri 17:00, зсув -20px), підтверджено
+# ("мені подобається, давай так залишимо") - див. LEARNINGS.md.
+_SUBSTITUTE_Y_SHIFT = -20
+
 
 def _pill_box(row_index: int, bounds: dict) -> tuple[int, int, int, int]:
     y0, y1 = bounds["y_bounds"][row_index]
@@ -146,13 +152,17 @@ def _draw_locked_pill(im: Image.Image, box, row_index: int, pill_width: int) -> 
 
 
 def _draw_status_text(im: Image.Image, draw: ImageDraw.ImageDraw, box, text: str, text_font,
-                       scale: float = 1.0) -> None:
+                       scale: float = 1.0, y_shift: int = 0) -> None:
     """Єдиний стиль для всіх статусів: однаковий розмір, по ГОРИЗОНТАЛЬНОМУ і
     вертикальному центру зони. Звірено з PSD-макетом розмітки статусів від
     дизайнера (2026-09-10) - усі 5 прикладів мають майже ІДЕНТИЧНИЙ X-центр
     тексту (~1016px з 1275, розбіжність <1px), а не спільний правий край
     (праві краї відрізняються на 60-90px) - це однозначно center-alignment,
-    не right-alignment, яке малювалось раніше."""
+    не right-alignment, яке малювалось раніше.
+
+    y_shift: точковий зсув по Y лише для конкретного статусу (наразі - "заміна",
+    2026-09-17, "мені подобається" на тестовому зображенні) - НЕ чіпає box
+    самого рядка (інші статуси в цьому ж рядку лишаються на місці)."""
     def s(px: float) -> int:
         return round(px * scale)
 
@@ -166,7 +176,7 @@ def _draw_status_text(im: Image.Image, draw: ImageDraw.ImageDraw, box, text: str
     font, gap = _fit_font(draw, lines, base_font, 0, box_h, box_w, min_size=s(12))
     heights = [_ink_size(draw, ln, font) for ln in lines]
     total_h = sum(h for _, h, _ in heights) + gap * (len(lines) - 1)
-    y = y0 + (box_h - total_h) / 2
+    y = y0 + (box_h - total_h) / 2 + y_shift
     _draw_lines_aligned(draw, box, lines, heights, font, y, gap, align="center")
 
 
@@ -213,7 +223,8 @@ async def build_story_image(
 
         text = _STORY_CONTENT.get(resp["status_key"])
         if text is not None:
-            _draw_status_text(im, draw, box, text, text_font, scale=scale)
+            y_shift = _SUBSTITUTE_Y_SHIFT if resp["status_key"] == "substitute" else 0
+            _draw_status_text(im, draw, box, text, text_font, scale=scale, y_shift=y_shift)
 
     im.save(out_path)
     return out_path

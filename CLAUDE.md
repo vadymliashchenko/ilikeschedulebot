@@ -63,6 +63,8 @@ Two template generations are in play, looked up via `story_layout.bounds_for(day
 
 A group whose `start_date` hasn't arrived yet (not locked, never polled) is rendered as "СТАРТ ДД.ММ" using the same single text style as every other status (`_draw_status_text`) — matched against real published stories, see LEARNINGS.md.
 
+`_draw_status_text` takes an optional `y_shift` (canvas-pixel offset applied after vertical centering) for per-status positional tweaks that shouldn't move the whole row's `_SLOT_BOUNDS` box (other statuses can land in that same row on other days). Currently only `substitute` ("ЗАМІНА") uses this, via `_SUBSTITUTE_Y_SHIFT = -20` in `bot/story_builder.py` (2026-09-17, user explicitly rejected shifting the whole row/box — see LEARNINGS.md). Any future "move this one status" request should follow the same pattern: a new `_STATUS_KEY_Y_SHIFT` constant applied only when that `status_key` matches, never an edit to `_SLOT_BOUNDS`.
+
 `db.get_locked_group_by_name_pattern` is a fallback lookup (ignores time) for rows that are shown decoratively in a frame whose time doesn't exactly match the group's real scheduled time — without it those rows silently render blank.
 
 ### Fonts
