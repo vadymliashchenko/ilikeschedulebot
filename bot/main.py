@@ -9,8 +9,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from bot import config, db  # noqa: E402  (config reads env vars, must load after load_dotenv)
+from bot import config, db, tolik, tolik_db  # noqa: E402  (config reads env vars, must load after load_dotenv)
 from bot.handlers import admin, corrections, manager, poll  # noqa: E402
+from bot.handlers import tolik as tolik_handlers  # noqa: E402
 from bot.scheduler import setup_scheduler  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -19,17 +20,20 @@ logger = logging.getLogger(__name__)
 
 async def main() -> None:
     conn = await db.init_db(config.DB_PATH)
+    await tolik_db.init(conn)
 
     bot = Bot(token=config.BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher(storage=MemoryStorage())
     dp["conn"] = conn
 
+    dp.include_router(tolik_handlers.router)  # Толік: лише свої команди й кнопки «tk:»
     dp.include_router(admin.router)
     dp.include_router(manager.router)
     dp.include_router(poll.router)
     dp.include_router(corrections.router)
 
     scheduler = setup_scheduler(bot, conn)
+    tolik.add_jobs(scheduler, bot, conn)
     scheduler.start()
     logger.info("Scheduler started")
 
