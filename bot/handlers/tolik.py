@@ -6,7 +6,7 @@ import random
 import aiosqlite
 from aiogram import Bot, F, Router
 from aiogram.exceptions import TelegramAPIError
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
@@ -182,6 +182,9 @@ async def on_thermo_value(message: Message, state: FSMContext, conn: aiosqlite.C
 
 
 # ---- реєстрація феї ----
+# Посилання для фей: https://t.me/<бот>?start=feya — «Старт» одразу веде до вибору імені
+# (а не до списку хореографів). Роутер Толіка підключено першим, тому цей обробник спрацьовує раніше.
+@router.message(CommandStart(deep_link=True, magic=F.args == "feya"), F.chat.type == "private")
 @router.message(Command("feya"), F.chat.type == "private")
 async def cmd_feya(message: Message, conn: aiosqlite.Connection) -> None:
     a = await tolik_db.get_admin(conn, message.from_user.id)
