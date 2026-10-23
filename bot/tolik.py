@@ -79,16 +79,16 @@ async def push_to_sheet(row: dict) -> None:
 
 # ---------------- клавіатури ----------------
 def choreo_keyboard(classes: list, d: str, bset: int, chosen: dict) -> InlineKeyboardMarkup:
-    icons = T.BUTTON_SETS[bset]
+    icons = T.BUTTON_SETS[bset % len(T.BUTTON_SETS)]
     rows = []
     multi = len(classes) > 1
     for i, g in enumerate(classes):
         row = []
         for k in ("c", "n", "h"):
             mark = "✅ " if chosen.get(g["id"]) == k else ""
-            prefix = f"{NUM[i]} " if multi else ""
+            prefix = f"{i + 1} " if multi else ""
             row.append(InlineKeyboardButton(
-                text=f"{mark}{prefix}{icons[k]} {T.ANSWER_WORDS[k]}",
+                text=f"{mark}{prefix}{icons[k]}",
                 callback_data=f"tk:c:{g['id']}:{d}:{k}:{bset}"))
         rows.append(row)
     return InlineKeyboardMarkup(inline_keyboard=rows)
@@ -102,9 +102,9 @@ def floors_keyboard(d: str, chosen: set) -> InlineKeyboardMarkup:
 
 
 def room_keyboard(d: str, floor: int, room: str, bset: int, chosen: Optional[str] = None) -> InlineKeyboardMarkup:
-    icons = T.BUTTON_SETS[bset]
+    icons = T.BUTTON_SETS[bset % len(T.BUTTON_SETS)]
     row = [InlineKeyboardButton(
-        text=("✅ " if chosen == k else "") + f"{icons[k]} {T.ANSWER_WORDS[k]}",
+        text=("✅ " if chosen == k else "") + icons[k],
         callback_data=f"tk:a:{d}:{floor}:{room}:{k}:{bset}") for k in ("c", "n", "h")]
     return InlineKeyboardMarkup(inline_keyboard=[
         row, [InlineKeyboardButton(text=T.THERMO_BTN, callback_data=f"tk:t:{d}:{floor}:{room}")]])
@@ -130,10 +130,11 @@ def choreo_text(qi: int, classes: list) -> str:
     if len(classes) == 1:
         g = classes[0]
         place = f"{T.HALL_NAMES.get(g['hall'], 'залі')} о {g['time']}"
-        return T.CHOREO_QUESTIONS[qi].format(place=place)
+        return T.CHOREO_QUESTIONS[qi].format(place=place) + "\n\n" + T.LEGEND
     lines = [T.CHOREO_QUESTIONS[qi].format(place="залах"), ""]
     for i, g in enumerate(classes):
         lines.append(f"{NUM[i]} {HALL_NOM.get(g['hall'], g['hall'])}, {g['time']} — {g['style']}")
+    lines += ["", T.LEGEND]
     return "\n".join(lines)
 
 
@@ -205,8 +206,8 @@ async def job_admin(bot: Bot, conn: aiosqlite.Connection, force_test: bool = Fal
 
 async def send_room_questions(bot: Bot, chat_id: int, d: str, floor: int) -> None:
     bset = random.randrange(len(T.BUTTON_SETS))
-    rq = random.choice(T.ADMIN_RECEPTION_QUESTIONS).format(floor=floor)
-    dq = random.choice(T.ADMIN_DRESSING_QUESTIONS).format(floor=floor)
+    rq = random.choice(T.ADMIN_RECEPTION_QUESTIONS).format(floor=floor) + "\n" + T.LEGEND
+    dq = random.choice(T.ADMIN_DRESSING_QUESTIONS).format(floor=floor) + "\n" + T.LEGEND
     await bot.send_message(chat_id, rq, reply_markup=room_keyboard(d, floor, "r", bset), parse_mode=None)
     await bot.send_message(chat_id, dq, reply_markup=room_keyboard(d, floor, "d", bset), parse_mode=None)
 
