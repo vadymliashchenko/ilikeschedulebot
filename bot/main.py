@@ -37,9 +37,18 @@ async def main() -> None:
     scheduler.start()
     logger.info("Scheduler started")
 
+    from bot import tolik_adjust
+    web_runner = None
+    try:
+        web_runner = await tolik_adjust.run_web(conn)
+    except Exception:  # noqa: BLE001 — сервер для HA не має валити бота
+        logger.exception("Tolik web failed to start")
+
     try:
         await dp.start_polling(bot)
     finally:
+        if web_runner is not None:
+            await web_runner.cleanup()
         scheduler.shutdown()
         await conn.close()
         await bot.session.close()

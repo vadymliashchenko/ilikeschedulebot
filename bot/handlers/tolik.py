@@ -286,6 +286,25 @@ async def cmd_tolikstats(message: Message, conn: aiosqlite.Connection) -> None:
     await message.answer("\n".join(lines), parse_mode=None)
 
 
+@router.message(Command("tolikpopravky"))
+async def cmd_tolikpopravky(message: Message, conn: aiosqlite.Connection) -> None:
+    if not _is_owner(message.from_user.id):
+        return
+    from bot import tolik_adjust
+    await message.answer(await tolik_adjust.all_adjustments_text(conn), parse_mode=None)
+
+
+@router.message(Command("tolikapi"))
+async def cmd_tolikapi(message: Message, conn: aiosqlite.Connection) -> None:
+    if not _is_owner(message.from_user.id):
+        return
+    from bot import tolik_adjust
+    k = await tolik_adjust.api_key(conn)
+    await message.answer(
+        "🔑 Ключ для Home Assistant (нікому не пересилайте):\n" + k +
+        "\n\nАдреса: https://<домен з Railway>/tolik/plan?key=" + k, parse_mode=None)
+
+
 @router.message(Command("tolikfei"))
 async def cmd_tolikfei(message: Message, conn: aiosqlite.Connection) -> None:
     if not _is_owner(message.from_user.id):

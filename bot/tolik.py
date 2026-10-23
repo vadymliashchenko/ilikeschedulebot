@@ -233,4 +233,7 @@ def add_jobs(scheduler: AsyncIOScheduler, bot: Bot, conn: aiosqlite.Connection) 
                       args=(bot, conn), id="tolik_admin", replace_existing=True, misfire_grace_time=1800)
     scheduler.add_job(_safe(job_admin), CronTrigger(day_of_week="sat", hour=sa_h, minute=sa_m, timezone=config.TZ),
                       args=(bot, conn), id="tolik_admin_sat", replace_existing=True, misfire_grace_time=1800)
+    from bot import tolik_adjust
+    scheduler.add_job(_safe(tolik_adjust.job_adjust), CronTrigger(hour=23, minute=30, timezone=config.TZ),
+                      args=(bot, conn), id="tolik_adjust", replace_existing=True, misfire_grace_time=3600)
     logger.info("Tolik jobs added (enabled=%s, owner_only=%s)", ENABLED, OWNER_ONLY)

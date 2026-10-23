@@ -34,6 +34,14 @@ CREATE TABLE IF NOT EXISTS tolik_admins (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS tolik_adjust (
+    key TEXT PRIMARY KEY,            -- style:<стиль> | room:<поверх>:<reception|dressing>
+    offset REAL NOT NULL,
+    step REAL NOT NULL,
+    last_dir INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS tolik_state (
     key TEXT PRIMARY KEY,
     value TEXT
