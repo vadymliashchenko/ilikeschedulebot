@@ -13,6 +13,22 @@ logger = logging.getLogger(__name__)
 router = Router(name="poll")
 
 
+_WEEKDAYS_UA = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"]
+
+
+def _confirmation_text(group: aiosqlite.Row, lesson_date: dt.date, choice: str, can_change: bool) -> str:
+    """Підтвердження хореографу: що саме він обрав і для якого заняття."""
+    day = f"{_WEEKDAYS_UA[lesson_date.weekday()]} {lesson_date.strftime('%d.%m')}"
+    text = (
+        "✅ Голос зараховано!\n"
+        f"🗓 {day}, {group['style']} о {group['time']}\n"
+        f"Ваш вибір: {choice}"
+    )
+    if can_change:
+        text += "\n\nЯкщо помилились - просто натисніть іншу кнопку вище."
+    return text
+
+
 @router.message(Command("chatid"))
 async def cmd_chatid(message: Message) -> None:
     text = f"ID цього чату: {message.chat.id}"
@@ -104,6 +120,9 @@ async def handle_status(
 
     info = config.STATUSES[status_key]
     await callback.answer(f"Записано: {info['label']}")
+    await callback.message.answer(
+        _confirmation_text(group, lesson_date, info["button"], can_change=True)
+    )
 
     await _check_limits(bot, conn, group, status_key, lesson_date)
 
@@ -125,6 +144,9 @@ async def handle_substitute_name(
     await db.save_response(conn, group_id, lesson_date, "substitute", extra_name=name)
     await callback.answer(f"Записано: заміна - {name}")
     await callback.message.edit_text(f"🔀 {group['choreographer']} - заміна: {name}")
+    await callback.message.answer(
+        _confirmation_text(group, lesson_date, f"{config.STATUSES['substitute']['button']} - {name}", can_change=False)
+    )
 
     await _check_limits(bot, conn, group, "substitute", lesson_date)
 
@@ -154,7 +176,9 @@ async def handle_substitute_text(
         return
 
     await db.save_response(conn, group_id, lesson_date, "substitute", extra_name=name)
-    await message.answer(f"🔀 {group['choreographer']} - заміна: {name}")
+    await message.answer(
+        _confirmation_text(group, lesson_date, f"{config.STATUSES['substitute']['button']} - {name}", can_change=False)
+    )
 
     await _check_limits(bot, conn, group, "substitute", lesson_date)
 
