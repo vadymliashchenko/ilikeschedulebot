@@ -33,6 +33,7 @@ OWNER_ONLY = _flag("TOLIK_OWNER_ONLY", True)
 SHEET_WEBHOOK = os.environ.get("TOLIK_SHEET_WEBHOOK", "").strip()
 CHOREO_TIME = os.environ.get("TOLIK_CHOREO_TIME", "21:15")
 CHOREO_DAYS = os.environ.get("TOLIK_CHOREO_DAYS", "mon,tue,wed,thu,fri")
+CHOREO_TIME_SAT = os.environ.get("TOLIK_CHOREO_TIME_SAT", "19:15")
 ADMIN_TIME = os.environ.get("TOLIK_ADMIN_TIME", "21:15")
 ADMIN_DAYS = os.environ.get("TOLIK_ADMIN_DAYS", "mon,tue,wed,thu,fri")
 ADMIN_TIME_SAT = os.environ.get("TOLIK_ADMIN_TIME_SAT", "18:15")
@@ -144,6 +145,17 @@ async def job_choreo(bot: Bot, conn: aiosqlite.Connection, force_test: bool = Fa
     test = force_test or OWNER_ONLY
     d = today()
     by_choreo = await classes_today(conn, d)
+    from bot import tolik_calendar
+    extra, unknown = await tolik_calendar.extra_classes(conn, d)
+    for name, gs in extra.items():
+        have = {(g["time"], g["hall"]) for g in by_choreo.get(name, [])}
+        by_choreo.setdefault(name, []).extend(g for g in gs if (g["time"], g["hall"]) not in have)
+    if unknown and not force_test:
+        try:
+            await bot.send_message(config.OWNER_CHAT_ID, "🤔 Толік: не знайшов хореографа для занять з календаря: "
+                                   + "; ".join(unknown), parse_mode=None)
+        except TelegramAPIError:
+            pass
     if not by_choreo:
         return 0
     qi = await pick_phrase(conn, "choreo_q", len(T.CHOREO_QUESTIONS))
@@ -229,6 +241,9 @@ def add_jobs(scheduler: AsyncIOScheduler, bot: Bot, conn: aiosqlite.Connection) 
     sa_h, sa_m = ADMIN_TIME_SAT.split(":")
     scheduler.add_job(_safe(job_choreo), CronTrigger(day_of_week=CHOREO_DAYS, hour=ch_h, minute=ch_m, timezone=config.TZ),
                       args=(bot, conn), id="tolik_choreo", replace_existing=True, misfire_grace_time=1800)
+    cs_h, cs_m = CHOREO_TIME_SAT.split(":")
+    scheduler.add_job(_safe(job_choreo), CronTrigger(day_of_week="sat", hour=cs_h, minute=cs_m, timezone=config.TZ),
+                      args=(bot, conn), id="tolik_choreo_sat", replace_existing=True, misfire_grace_time=1800)
     scheduler.add_job(_safe(job_admin), CronTrigger(day_of_week=ADMIN_DAYS, hour=ad_h, minute=ad_m, timezone=config.TZ),
                       args=(bot, conn), id="tolik_admin", replace_existing=True, misfire_grace_time=1800)
     scheduler.add_job(_safe(job_admin), CronTrigger(day_of_week="sat", hour=sa_h, minute=sa_m, timezone=config.TZ),

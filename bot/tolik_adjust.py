@@ -166,6 +166,17 @@ async def plan_for(conn: aiosqlite.Connection, d: dt.date) -> dict:
         a = await get_adj(conn, k)
         classes.append(dict(hall=g["hall"], time=g["time"], style=g["style"], choreographer=g["choreographer"],
                             key=k, offset=a["offset"], intense=is_intense(k[6:])))
+    from bot import tolik_calendar
+    extra, _ = await tolik_calendar.extra_classes(conn, d)
+    have = {(c["hall"], c["time"]) for c in classes}
+    for gs in extra.values():
+        for g in gs:
+            if (g["hall"], g["time"]) in have:
+                continue
+            k = style_key(g["style"])
+            a = await get_adj(conn, k)
+            classes.append(dict(hall=g["hall"], time=g["time"], style=g["style"], choreographer=g["choreographer"],
+                                key=k, offset=a["offset"], intense=is_intense(k[6:])))
     rooms = {}
     for floor in (1, 2, 3):
         for room in ("reception", "dressing"):
@@ -203,8 +214,23 @@ async def run_web(conn: aiosqlite.Connection) -> Optional[web.AppRunner]:
     async def health(_: web.Request) -> web.Response:
         return web.Response(text="ok")
 
+    async def extra(request: web.Request) -> web.Response:
+        if request.query.get("key") != await api_key(conn):
+            return web.Response(status=403, text="forbidden")
+        try:
+            body = await request.json()
+            date = dt.date.fromisoformat(body["date"]).isoformat()
+            events = [dict(hall=str(e.get("hall", "")), start=str(e.get("start", ""))[:5], title=str(e.get("title", ""))[:120])
+                      for e in body.get("events", [])][:60]
+        except Exception:  # noqa: BLE001
+            return web.Response(status=400, text="bad json")
+        from bot import tolik_calendar
+        n = await tolik_calendar.save_extra(conn, date, events)
+        return web.Response(text=json.dumps({"ok": True, "saved": n}), content_type="application/json")
+
     app = web.Application()
     app.router.add_get("/tolik/plan", plan)
+    app.router.add_post("/tolik/extra", extra)
     app.router.add_get("/", health)
     runner = web.AppRunner(app)
     await runner.setup()
