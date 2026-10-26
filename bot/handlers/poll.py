@@ -13,20 +13,62 @@ logger = logging.getLogger(__name__)
 router = Router(name="poll")
 
 
-_WEEKDAYS_UA = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"]
+def _table_already_published(lesson_date: dt.date) -> bool:
+    """Чи вже вийшла таблиця (о TABLE_TIME напередодні заняття)."""
+    h, m = map(int, config.TABLE_TIME.split(":"))
+    deadline = dt.datetime.combine(
+        lesson_date - dt.timedelta(days=1), dt.time(h, m), tzinfo=config.TZ
+    )
+    return dt.datetime.now(config.TZ) >= deadline
 
 
-def _confirmation_text(group: aiosqlite.Row, lesson_date: dt.date, choice: str, can_change: bool) -> str:
-    """Підтвердження хореографу: що саме він обрав і для якого заняття."""
-    day = f"{_WEEKDAYS_UA[lesson_date.weekday()]} {lesson_date.strftime('%d.%m')}"
+def _lesson_passed(lesson_date: dt.date) -> bool:
+    return lesson_date < dt.datetime.now(config.TZ).date()
+
+
+async def _confirm(
+    bot: Bot, conn: aiosqlite.Connection, group: aiosqlite.Row,
+    lesson_date: dt.date, choice: str, can_change: bool, reply,
+) -> None:
+    """Підтвердження хореографу: що саме обрано, на що ще треба відповісти,
+    і (якщо таблиця вже вийшла) - пізня відповідь: знімаємо 'не відповів' і повідомляємо власника."""
+    choreographer = group["choreographer"]
+    day = config.day_label(lesson_date)
     text = (
         "✅ Голос зараховано!\n"
         f"🗓 {day}, {group['style']} о {group['time']}\n"
         f"Ваш вибір: {choice}"
     )
+
+    pollable = await db.get_pollable_groups_for_date(conn, lesson_date)
+    own = [g for g in pollable if g["choreographer"] == choreographer]
+    remaining = [g for g in own if await db.get_response(conn, g["id"], lesson_date) is None]
+    if remaining:
+        left = "\n".join(f"• {g['style']} о {g['time']}" for g in remaining)
+        text += f"\n\n⏳ Ще чекаю вашу відповідь на {day}:\n{left}"
+    elif len(own) > 1:
+        text += f"\n\n🎉 Усі ваші заняття на {day} відмічено!"
+
+    late = _table_already_published(lesson_date)
+    if late:
+        text += (
+            f"\n\n⏰ Таблиця розкладу вже вийшла о {config.TABLE_TIME}, "
+            "тож вашу відповідь я окремо передав адміністрації."
+        )
+        if not remaining:
+            await db.delete_missed_poll(conn, choreographer, lesson_date)
+        try:
+            await bot.send_message(
+                config.OWNER_CHAT_ID,
+                f"🕒 Пізня відповідь (після {config.TABLE_TIME}): {choreographer} - "
+                f"{day}, {group['style']} о {group['time']}: {choice}",
+            )
+        except Exception:
+            logger.exception("Не вдалось повідомити власника про пізню відповідь")
+
     if can_change:
         text += "\n\nЯкщо помилились - просто натисніть іншу кнопку вище."
-    return text
+    await reply(text)
 
 
 @router.message(Command("chatid"))
@@ -90,6 +132,10 @@ async def handle_status(
         await callback.answer("Групу не знайдено.", show_alert=True)
         return
 
+    if _lesson_passed(lesson_date):
+        await callback.answer("Це опитування вже неактуальне - заняття минуло.", show_alert=True)
+        return
+
     choreographer = group["choreographer"]
     linked = await db.get_choreographer_by_telegram_id(conn, callback.from_user.id)
 
@@ -120,9 +166,7 @@ async def handle_status(
 
     info = config.STATUSES[status_key]
     await callback.answer(f"Записано: {info['label']}")
-    await callback.message.answer(
-        _confirmation_text(group, lesson_date, info["button"], can_change=True)
-    )
+    await _confirm(bot, conn, group, lesson_date, info["button"], True, callback.message.answer)
 
     await _check_limits(bot, conn, group, status_key, lesson_date)
 
@@ -144,9 +188,8 @@ async def handle_substitute_name(
     await db.save_response(conn, group_id, lesson_date, "substitute", extra_name=name)
     await callback.answer(f"Записано: заміна - {name}")
     await callback.message.edit_text(f"🔀 {group['choreographer']} - заміна: {name}")
-    await callback.message.answer(
-        _confirmation_text(group, lesson_date, f"{config.STATUSES['substitute']['button']} - {name}", can_change=False)
-    )
+    await _confirm(bot, conn, group, lesson_date,
+                   f"{config.STATUSES['substitute']['button']} - {name}", False, callback.message.answer)
 
     await _check_limits(bot, conn, group, "substitute", lesson_date)
 
@@ -176,9 +219,8 @@ async def handle_substitute_text(
         return
 
     await db.save_response(conn, group_id, lesson_date, "substitute", extra_name=name)
-    await message.answer(
-        _confirmation_text(group, lesson_date, f"{config.STATUSES['substitute']['button']} - {name}", can_change=False)
-    )
+    await _confirm(bot, conn, group, lesson_date,
+                   f"{config.STATUSES['substitute']['button']} - {name}", False, message.answer)
 
     await _check_limits(bot, conn, group, "substitute", lesson_date)
 

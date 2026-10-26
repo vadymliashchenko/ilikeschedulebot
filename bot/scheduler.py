@@ -23,11 +23,29 @@ def _tomorrow() -> dt.date:
     return dt.datetime.now(config.TZ).date() + dt.timedelta(days=1)
 
 
+def _poll_text(g, lesson_date: dt.date, by_name: dict, header: str = "") -> str:
+    """Текст опитування: день/дата і, якщо в хореографа кілька занять, 'заняття 1 з 2'."""
+    own = by_name.get(g["choreographer"], [])
+    text = header + f"🗓 {config.day_label(lesson_date)}: {g['style']} о {g['time']}"
+    if len(own) > 1:
+        idx = [x["id"] for x in own].index(g["id"]) + 1
+        text += f"\n📌 Заняття {idx} з {len(own)} у вас цього дня - відповідайте, будь ласка, на кожне"
+    return text + "\nЯкий статус завтрашнього заняття?"
+
+
+def _group_by_choreographer(groups) -> dict:
+    by_name: dict = {}
+    for g in groups:
+        by_name.setdefault(g["choreographer"], []).append(g)
+    return by_name
+
+
 async def job_start_poll(bot: Bot, conn: aiosqlite.Connection) -> None:
     # Опитування йде кожному хореографу окремо в його приватний чат з ботом
     # (не в спільну групу), щоб не дратувати тих, хто не веде занять того дня.
     lesson_date = _tomorrow()
     groups = await db.get_pollable_groups_for_date(conn, lesson_date)
+    by_name = _group_by_choreographer(groups)
     sent = 0
     unreachable: set[str] = set()
     for g in groups:
@@ -40,7 +58,7 @@ async def job_start_poll(bot: Bot, conn: aiosqlite.Connection) -> None:
             unreachable.add(g["choreographer"])
             continue
 
-        text = f"🗓 {g['style']} о {g['time']}\nЯкий статус завтрашнього заняття?"
+        text = _poll_text(g, lesson_date, by_name)
         kb = keyboards.status_keyboard(g["id"], lesson_date.isoformat())
         try:
             await bot.send_message(telegram_id, text, reply_markup=kb)
@@ -68,6 +86,7 @@ async def job_reminder(bot: Bot, conn: aiosqlite.Connection) -> None:
         return
 
     cat = random.choice(config.CAT_EMOJI)
+    by_name = _group_by_choreographer(await db.get_pollable_groups_for_date(conn, lesson_date))
     reminded = 0
     unreachable: set[str] = set()
     for g in missing:
@@ -76,10 +95,7 @@ async def job_reminder(bot: Bot, conn: aiosqlite.Connection) -> None:
             unreachable.add(g["choreographer"])
             continue
 
-        text = (
-            f"{cat} Нагадування - ви ще не відповіли\n"
-            f"🗓 {g['style']} о {g['time']}\nЯкий статус завтрашнього заняття?"
-        )
+        text = _poll_text(g, lesson_date, by_name, header=f"{cat} Нагадування - ви ще не відповіли\n")
         kb = keyboards.status_keyboard(g["id"], lesson_date.isoformat())
         try:
             await bot.send_message(telegram_id, text, reply_markup=kb)

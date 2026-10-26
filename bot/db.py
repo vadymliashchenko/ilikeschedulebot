@@ -203,6 +203,17 @@ async def record_missed_poll(
     await conn.commit()
 
 
+async def delete_missed_poll(
+    conn: aiosqlite.Connection, choreographer: str, lesson_date: dt.date
+) -> None:
+    """Знімає позначку 'не відповів', якщо хореограф відповів пізніше (після таблиці)."""
+    await conn.execute(
+        "DELETE FROM missed_polls WHERE choreographer = ? AND lesson_date = ?",
+        (choreographer, lesson_date.isoformat()),
+    )
+    await conn.commit()
+
+
 async def count_missed_polls_this_month(
     conn: aiosqlite.Connection, choreographer: str, year_month: str
 ) -> int:

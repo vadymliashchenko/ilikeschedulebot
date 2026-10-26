@@ -37,6 +37,13 @@ STORY_OUTPUT_DIR = os.environ.get("STORY_OUTPUT_DIR", "generated_stories")
 CLIENT_PUBLISHING_ENABLED = os.environ.get("CLIENT_PUBLISHING_ENABLED", "false").lower() == "true"
 
 TZ = ZoneInfo("Europe/Kyiv")
+
+WEEKDAYS_UA = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"]
+
+
+def day_label(d) -> str:
+    """'Пн 27.10' - день тижня і дата для текстів хореографам."""
+    return f"{WEEKDAYS_UA[d.weekday()]} {d.strftime('%d.%m')}"
 DB_PATH = os.environ.get("DB_PATH", "bot.db")
 
 POLL_START_TIME = "13:00"
