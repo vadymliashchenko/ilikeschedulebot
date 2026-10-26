@@ -47,7 +47,8 @@ def day_label(d) -> str:
 DB_PATH = os.environ.get("DB_PATH", "bot.db")
 
 POLL_START_TIME = "13:00"
-REMINDER_TIME = "15:00"
+# Нагадування лише тим, хто ще не відповів (кожне - окремо).
+REMINDER_TIMES = ["14:00", "15:00"]
 TABLE_TIME = "16:00"
 CLIENT_REPOST_TIME = "21:00"
 
