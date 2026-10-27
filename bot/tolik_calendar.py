@@ -27,7 +27,7 @@ ALIASES = {
     "юля к": "Копитко Юля",
 }
 CAL_HALL = {"grey": "white", "white": "white", "blue": "blue", "green": "green", "pink": "pink", "purple": "purple"}
-SKIP_WORDS = ("інд", "для себе", "оренд", "відпрацюв")
+SKIP_WORDS = ("інд", "для себе", "оренд")
 
 
 def classify(title: str) -> Optional[str]:
@@ -38,6 +38,8 @@ def classify(title: str) -> Optional[str]:
         return "Команда"
     if "закрит" in t:
         return "Закрита група"
+    if "відпрацюв" in t:  # 27.10.2026 (власник): група відпрацьовує заняття з хореографом
+        return "Відпрацювання"
     return None
 
 
