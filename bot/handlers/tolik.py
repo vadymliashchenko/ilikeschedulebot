@@ -305,6 +305,36 @@ async def cmd_tolikapi(message: Message, conn: aiosqlite.Connection) -> None:
         "\n\nАдреса: https://<домен з Railway>/tolik/plan?key=" + k, parse_mode=None)
 
 
+@router.message(Command("tolikdnes"))
+async def cmd_tolikdnes(message: Message, conn: aiosqlite.Connection) -> None:
+    """Відповіді хореографів і фей за день: /tolikdnes або /tolikdnes 2026-10-27."""
+    if not _is_owner(message.from_user.id):
+        return
+    arg = (message.text or "").split(maxsplit=1)
+    try:
+        d = dt.date.fromisoformat(arg[1].strip()) if len(arg) > 1 else tolik.today()
+    except ValueError:
+        await message.answer("Формат: /tolikdnes 2026-10-27", parse_mode=None)
+        return
+    cur = await conn.execute(
+        "SELECT * FROM comfort_responses WHERE survey_date = ? AND is_test = 0 ORDER BY role, person, class_time",
+        (d.isoformat(),))
+    rows = await cur.fetchall()
+    if not rows:
+        await message.answer(f"За {d.strftime('%d.%m')} відповідей немає 🤷", parse_mode=None)
+        return
+    em = {"cold": "🥶", "normal": "🙂", "hot": "🥵"}
+    lines = [f"📋 Відповіді за {d.strftime('%d.%m.%Y')}:"]
+    for r in rows:
+        if r["role"] == "choreographer":
+            place = f"{tolik.HALL_NOM.get(r['hall'], r['hall'])} {r['class_time'] or ''} — {r['style'] or ''}"
+        else:
+            place = f"{r['floor']} пов. — " + ("рецепція" if r["room"] == "reception" else T.DRESSING_ROOM_NAMES.get(r["floor"], "роздягалка"))
+        t = f" (термометр {r['thermometer']} °C)" if r["thermometer"] is not None else ""
+        lines.append(f"{em.get(r['answer'], '•')} {r['person']}: {place}{t}")
+    await message.answer("\n".join(lines), parse_mode=None)
+
+
 @router.message(Command("tolikfei"))
 async def cmd_tolikfei(message: Message, conn: aiosqlite.Connection) -> None:
     if not _is_owner(message.from_user.id):
