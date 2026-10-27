@@ -228,8 +228,31 @@ async def run_web(conn: aiosqlite.Connection) -> Optional[web.AppRunner]:
         n = await tolik_calendar.save_extra(conn, date, events)
         return web.Response(text=json.dumps({"ok": True, "saved": n}), content_type="application/json")
 
+    async def answers(request: web.Request) -> web.Response:
+        """CSV усіх реальних відповідей за N днів (для аналізу в HA / Claude)."""
+        if request.query.get("key") != await api_key(conn):
+            return web.Response(status=403, text="forbidden")
+        try:
+            days = max(1, min(366, int(request.query.get("days", "60"))))
+        except ValueError:
+            days = 60
+        since = (dt.datetime.now(config.TZ).date() - dt.timedelta(days=days)).isoformat()
+        cur = await conn.execute(
+            "SELECT survey_date, role, person, hall, floor, room, class_time, style, answer, thermometer, updated_at "
+            "FROM comfort_responses WHERE is_test = 0 AND survey_date >= ? ORDER BY survey_date, role, person, class_time",
+            (since,))
+        import csv
+        import io
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        w.writerow(["date", "role", "person", "hall", "floor", "room", "class_time", "style", "answer", "thermometer", "updated_at"])
+        for r in await cur.fetchall():
+            w.writerow([r[k] if r[k] is not None else "" for k in r.keys()])
+        return web.Response(text=buf.getvalue(), content_type="text/csv", charset="utf-8")
+
     app = web.Application()
     app.router.add_get("/tolik/plan", plan)
+    app.router.add_get("/tolik/answers.csv", answers)
     app.router.add_post("/tolik/extra", extra)
     app.router.add_get("/", health)
     runner = web.AppRunner(app)
