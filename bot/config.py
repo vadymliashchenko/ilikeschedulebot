@@ -176,7 +176,7 @@ DAY_PATTERN_WEEKDAYS = {
 SCHEDULE = [
     # --- ПН-ЧТ ---
     {"day_pattern": "mon_thu", "time": "16:30", "choreographer": "Копитко Юля",
-     "style": "Street Dance (6-11)", "level": 2, "hall": "white", "locked": True},
+     "style": "Street Dance (6-11)", "level": 2, "hall": "purple", "locked": True},
     {"day_pattern": "mon_thu", "time": "17:00", "choreographer": "Росінська Віка",
      "style": "Choreography (12-14)", "level": 1, "hall": "green", "start_date": "2026-08-01"},
     {"day_pattern": "mon_thu", "time": "17:00", "choreographer": "Купецька Соня",
