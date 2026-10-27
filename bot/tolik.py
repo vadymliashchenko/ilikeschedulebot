@@ -35,6 +35,7 @@ CHOREO_TIME = os.environ.get("TOLIK_CHOREO_TIME", "21:15")
 CHOREO_DAYS = os.environ.get("TOLIK_CHOREO_DAYS", "mon,tue,wed,thu,fri")
 CHOREO_TIME_SAT = os.environ.get("TOLIK_CHOREO_TIME_SAT", "19:15")
 ADMIN_TIME = os.environ.get("TOLIK_ADMIN_TIME", "21:15")
+ADJUST_TIME = os.environ.get("TOLIK_ADJUST_TIME", "22:30")  # звіт власнику + поправки (власник 27.10.2026; було 23:30)
 ADMIN_DAYS = os.environ.get("TOLIK_ADMIN_DAYS", "mon,tue,wed,thu,fri")
 ADMIN_TIME_SAT = os.environ.get("TOLIK_ADMIN_TIME_SAT", "18:15")
 
@@ -249,6 +250,7 @@ def add_jobs(scheduler: AsyncIOScheduler, bot: Bot, conn: aiosqlite.Connection) 
     scheduler.add_job(_safe(job_admin), CronTrigger(day_of_week="sat", hour=sa_h, minute=sa_m, timezone=config.TZ),
                       args=(bot, conn), id="tolik_admin_sat", replace_existing=True, misfire_grace_time=1800)
     from bot import tolik_adjust
-    scheduler.add_job(_safe(tolik_adjust.job_adjust), CronTrigger(hour=23, minute=30, timezone=config.TZ),
+    aj_h, aj_m = ADJUST_TIME.split(":")
+    scheduler.add_job(_safe(tolik_adjust.job_adjust), CronTrigger(hour=aj_h, minute=aj_m, timezone=config.TZ),
                       args=(bot, conn), id="tolik_adjust", replace_existing=True, misfire_grace_time=3600)
     logger.info("Tolik jobs added (enabled=%s, owner_only=%s)", ENABLED, OWNER_ONLY)
