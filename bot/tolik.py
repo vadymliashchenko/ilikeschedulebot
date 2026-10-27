@@ -181,6 +181,8 @@ async def job_choreo(bot: Bot, conn: aiosqlite.Connection, force_test: bool = Fa
         if test and sent >= 3:
             break  # у тесті власнику достатньо 3 прикладів
     logger.info("Tolik choreo survey %s: %d sent (test=%s)", d, sent, test)
+    if not test:
+        await tolik_db.set_state(conn, f"sent:choreo:{d.isoformat()}", "1")
     return sent
 
 
@@ -214,6 +216,7 @@ async def job_admin(bot: Bot, conn: aiosqlite.Connection, force_test: bool = Fal
         except TelegramAPIError as e:
             logger.warning("Tolik admin send to %s failed: %s", a["name"], e)
     logger.info("Tolik admin survey %s: %d sent", d, sent)
+    await tolik_db.set_state(conn, f"sent:admin:{d.isoformat()}", "1")
     return sent
 
 
@@ -236,6 +239,24 @@ def _safe(job):
     return wrapper
 
 
+async def job_catch_up(bot: Bot, conn: aiosqlite.Connection) -> None:
+    """Після перезапуску (Railway-деплой) — надолужити опитування, якщо його час уже минув, а сьогодні ще не надсилали.
+    27.10.2026: деплой близько 21:15 «з'їв» опитування — планувальник у пам'яті не запускає пропущені задачі."""
+    if not ENABLED or OWNER_ONLY:
+        return
+    now = dt.datetime.now(config.TZ)
+    d, hm = now.date(), now.strftime("%H:%M")
+    wd = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"][d.weekday()]
+    plans = [("choreo", CHOREO_TIME_SAT if wd == "sat" else CHOREO_TIME,
+              wd == "sat" or wd in CHOREO_DAYS.split(","), job_choreo),
+             ("admin", ADMIN_TIME_SAT if wd == "sat" else ADMIN_TIME,
+              wd == "sat" or wd in ADMIN_DAYS.split(","), job_admin)]
+    for kind, at, day_ok, job in plans:
+        if day_ok and at <= hm < "23:00" and not await tolik_db.get_state(conn, f"sent:{kind}:{d.isoformat()}"):
+            logger.info("Tolik catch-up: running missed %s survey for %s", kind, d)
+            await job(bot, conn)
+
+
 def add_jobs(scheduler: AsyncIOScheduler, bot: Bot, conn: aiosqlite.Connection) -> None:
     ch_h, ch_m = CHOREO_TIME.split(":")
     ad_h, ad_m = ADMIN_TIME.split(":")
@@ -253,4 +274,7 @@ def add_jobs(scheduler: AsyncIOScheduler, bot: Bot, conn: aiosqlite.Connection) 
     aj_h, aj_m = ADJUST_TIME.split(":")
     scheduler.add_job(_safe(tolik_adjust.job_adjust), CronTrigger(hour=aj_h, minute=aj_m, timezone=config.TZ),
                       args=(bot, conn), id="tolik_adjust", replace_existing=True, misfire_grace_time=3600)
+    from apscheduler.triggers.date import DateTrigger
+    scheduler.add_job(_safe(job_catch_up), DateTrigger(run_date=dt.datetime.now(config.TZ) + dt.timedelta(seconds=90)),
+                      args=(bot, conn), id="tolik_catch_up", replace_existing=True)
     logger.info("Tolik jobs added (enabled=%s, owner_only=%s)", ENABLED, OWNER_ONLY)
