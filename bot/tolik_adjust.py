@@ -126,12 +126,22 @@ async def process_new_answers(conn: aiosqlite.Connection) -> list[str]:
     return report
 
 
+async def send_report(bot: Bot, text: str) -> None:
+    """Звіт Толіка — у гілку «Толік» групи «iLike - Помічники»; якщо не вийшло — власнику особисто."""
+    try:
+        await bot.send_message(config.TOLIK_REPORT_CHAT_ID, text,
+                               message_thread_id=config.TOLIK_REPORT_THREAD_ID, parse_mode=None)
+        return
+    except Exception as e:  # noqa: BLE001 — будь-яка помилка Telegram: запасний шлях
+        logging.getLogger(__name__).warning("Толік: не вдалось надіслати в групу (%s), шлю власнику", e)
+    await bot.send_message(config.OWNER_CHAT_ID, text, parse_mode=None)
+
+
+
 async def job_adjust(bot: Bot, conn: aiosqlite.Connection) -> None:
     report = await process_new_answers(conn)
     if report:
-        await bot.send_message(config.OWNER_CHAT_ID,
-                               "🎛 Толік: поправки за сьогоднішніми відповідями\n\n" + "\n".join(report),
-                               parse_mode=None)
+        await send_report(bot, "🎛 Толік: поправки за сьогоднішніми відповідями\n\n" + "\n".join(report))
 
 
 async def all_adjustments_text(conn: aiosqlite.Connection) -> str:

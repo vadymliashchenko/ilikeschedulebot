@@ -5,6 +5,11 @@ BOT_TOKEN = os.environ["BOT_TOKEN"]
 CHOREO_GROUP_CHAT_ID = int(os.environ["CHOREO_GROUP_CHAT_ID"])
 OWNER_CHAT_ID = int(os.environ["OWNER_CHAT_ID"])
 
+# Група «iLike - Помічники» (форум з гілками): звіти Толіка йдуть у гілку «Толік».
+# Якщо надіслати не вдалось — Толік шле власнику особисто, як раніше.
+TOLIK_REPORT_CHAT_ID = int(os.environ.get("TOLIK_REPORT_CHAT_ID", "-1003586932852"))
+TOLIK_REPORT_THREAD_ID = int(os.environ.get("TOLIK_REPORT_THREAD_ID", "12"))
+
 # Адміністратор (наприклад, менеджер студії) - має доступ лише до керування
 # складом груп (➕/➖/✏️), але не до власницьких команд (звірка, ручні тригери).
 MANAGER_CHAT_ID = os.environ.get("MANAGER_CHAT_ID")

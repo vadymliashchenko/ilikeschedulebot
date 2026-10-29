@@ -153,8 +153,8 @@ async def job_choreo(bot: Bot, conn: aiosqlite.Connection, force_test: bool = Fa
         by_choreo.setdefault(name, []).extend(g for g in gs if (g["time"], g["hall"]) not in have)
     if unknown and not force_test:
         try:
-            await bot.send_message(config.OWNER_CHAT_ID, "🤔 Толік: не знайшов хореографа для занять з календаря: "
-                                   + "; ".join(unknown), parse_mode=None)
+            from bot.tolik_adjust import send_report
+            await send_report(bot, "🤔 Толік: не знайшов хореографа для занять з календаря: " + "; ".join(unknown))
         except TelegramAPIError:
             pass
     if not by_choreo:
