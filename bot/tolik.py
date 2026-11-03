@@ -42,8 +42,8 @@ ADMIN_TIME_SAT = os.environ.get("TOLIK_ADMIN_TIME_SAT", "18:15")
 HALL_NOM = {"white": "Сірий зал", "blue": "Синій зал", "purple": "Фіолетовий зал",
             "green": "Зелений зал", "pink": "Рожевий зал"}
 HALL_DOT = {"white": "⚪", "blue": "🔵", "purple": "🟣", "green": "🟢", "pink": "🌸"}
-NUM = ["1️⃣", "2️⃣", "3️⃣"]
-MAX_CLASSES_PER_MESSAGE = 3
+NUM = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
+MAX_CLASSES_PER_MESSAGE = 5
 
 
 def today() -> dt.date:
