@@ -53,7 +53,9 @@ async def on_choreo_answer(callback: CallbackQuery, conn: aiosqlite.Connection) 
                 return
         survey_date = tolik.s2d(d).isoformat()
         row = dict(survey_date=survey_date, role="choreographer", person=group["choreographer"],
-                   telegram_user_id=uid, group_id=gid, hall=group["hall"], room="hall",
+                   telegram_user_id=uid, group_id=gid,
+                   hall=await tolik_db.get_state(conn, f"hall:{tolik.s2d(d).isoformat()}:{gid}") or group["hall"],
+                   room="hall",
                    class_time=group["time"], style=group["style"], answer=T.ANSWER_KEYS[k], is_test=is_test)
         await tolik_db.save_comfort(conn, **row)
         await tolik.push_to_sheet(row)
@@ -80,6 +82,34 @@ async def on_choreo_answer(callback: CallbackQuery, conn: aiosqlite.Connection) 
     except Exception:  # noqa: BLE001
         logger.exception("Tolik choreo callback failed")
         await callback.answer("Ой, щось пішло не так 🙈 Спробуйте ще раз", show_alert=True)
+
+
+@router.callback_query(F.data.startswith("tk:h:"))
+async def on_choreo_other_hall(callback: CallbackQuery, conn: aiosqlite.Connection) -> None:
+    """Хореографи міняються залами: окреме маленьке питання, де реально було заняття."""
+    _, _, gid_s, d = callback.data.split(":")
+    group = await db.get_group(conn, int(gid_s))
+    if group is None:
+        await callback.answer("Заняття не знайдено 🙈", show_alert=True)
+        return
+    rows = [[InlineKeyboardButton(text=name, callback_data=f"tk:hs:{gid_s}:{d}:{hall}")]
+            for hall, name in tolik.HALL_NOM.items() if hall != group["hall"]]
+    await callback.answer()
+    await callback.message.answer(f"У якому залі було заняття о {group['time']} ({group['style']})?",
+                                  reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
+
+
+@router.callback_query(F.data.startswith("tk:hs:"))
+async def on_choreo_hall_set(callback: CallbackQuery, conn: aiosqlite.Connection) -> None:
+    _, _, gid_s, d, hall = callback.data.split(":")
+    survey_date = tolik.s2d(d).isoformat()
+    await tolik_db.set_state(conn, f"hall:{survey_date}:{gid_s}", hall)
+    await conn.execute(
+        "UPDATE comfort_responses SET hall = ? WHERE survey_date = ? AND role = 'choreographer' AND group_id = ?",
+        (hall, survey_date, int(gid_s)))
+    await conn.commit()
+    await callback.answer("Записав 👌")
+    await _edit_safe(callback, text=f"✅ Записав: {tolik.HALL_NOM.get(hall, hall)}")
 
 
 # ================= феї-адміністратори =================

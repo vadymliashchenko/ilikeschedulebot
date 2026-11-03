@@ -93,6 +93,9 @@ def choreo_keyboard(classes: list, d: str, bset: int, chosen: dict) -> InlineKey
                 text=f"{mark}{prefix}{icons[k]}",
                 callback_data=f"tk:c:{g['id']}:{d}:{k}:{bset}"))
         rows.append(row)
+        prefix = f"{i + 1} " if multi else ""
+        rows.append([InlineKeyboardButton(text=f"{prefix}🔄 Було в іншому залі",
+                                          callback_data=f"tk:h:{g['id']}:{d}")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 

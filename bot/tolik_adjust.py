@@ -6,7 +6,9 @@
 Правила (раз на день, за більшістю відповідей дня):
   🥵 жарко → −2, ще раз жарко → ще −2; 🥶 холодно → +2;
   розворот (холодно після жарко або навпаки) → крок 1 °C назавжди;
-  🙂 нормально / немає відповіді → без змін.
+  🙂 нормально / немає відповіді → без змін;
+  пошук межі (власник 4.11.2026): для стилю 2 дні поспіль «нормально» → пробуємо −0,5 °C (не нижче TRIAL_MIN);
+  «холодно» одразу після такої проби → +0,5 назад, і ця межа для стилю запам'ятовується.
 Інтенсивні стилі (хореографія, хіп-хоп, джаз-фанк) стартують з −2 (= кондиціонер на час заняття вимкнено,
 поки ціль < 17 °C). Межі поправки: −6…+4.
 Home Assistant забирає план дня через GET /tolik/plan?key=… (див. run_web).
@@ -31,6 +33,7 @@ INTENSE = ("choreography", "hip hop", "jazz funk")
 START_INTENSE = -2.0
 STEP0 = 2.0
 OFF_MIN, OFF_MAX = -6.0, 4.0
+TRIAL_STEP, TRIAL_MIN, TRIAL_STREAK = 0.5, -2.0, 2
 DIR = {"cold": 1, "hot": -1, "normal": 0}
 ROOM_UA = {"reception": "рецепція", "dressing": "роздягалка"}
 
@@ -89,6 +92,30 @@ def apply_rule(a: dict, d: int) -> dict:
     return a
 
 
+async def _with_trial(conn: aiosqlite.Connection, k: str, a: dict, d: int) -> tuple[dict, str]:
+    """Правило поправок + пошук межі стилю: двічі «нормально» → проба −0,5; «холодно» після проби → назад."""
+    if not k.startswith("style:"):
+        return apply_rule(a, d), ""
+    limit = await tolik_db.get_state(conn, f"trial_limit:{k}")
+    trial = await tolik_db.get_state(conn, f"trial_on:{k}") == "1"
+    if d == 0:
+        streak = int(await tolik_db.get_state(conn, f"trial_streak:{k}") or 0) + 1
+        bottom = max(TRIAL_MIN, float(limit)) if limit else TRIAL_MIN
+        if streak >= TRIAL_STREAK and a["offset"] - TRIAL_STEP >= bottom:
+            await tolik_db.set_state(conn, f"trial_streak:{k}", "0")
+            await tolik_db.set_state(conn, f"trial_on:{k}", "1")
+            return dict(a, offset=a["offset"] - TRIAL_STEP), ", двічі поспіль: пробуємо менше"
+        await tolik_db.set_state(conn, f"trial_streak:{k}", str(streak))
+        return a, ""
+    await tolik_db.set_state(conn, f"trial_streak:{k}", "0")
+    await tolik_db.set_state(conn, f"trial_on:{k}", "0")
+    if d > 0 and trial:
+        back = a["offset"] + TRIAL_STEP
+        await tolik_db.set_state(conn, f"trial_limit:{k}", str(back))
+        return dict(a, offset=back), ", межу знайдено"
+    return apply_rule(a, d), ""
+
+
 async def process_new_answers(conn: aiosqlite.Connection) -> list[str]:
     """Обробляє нові (не тестові) відповіді, повертає рядки звіту про зміни."""
     last_id = int(await tolik_db.get_state(conn, "adjust_last_id") or 0)
@@ -114,9 +141,9 @@ async def process_new_answers(conn: aiosqlite.Connection) -> list[str]:
         s = sum(votes[(k, day)])
         d = 1 if s > 0 else -1 if s < 0 else 0
         before = await get_adj(conn, k)
-        after = apply_rule(before, d)
+        after, note = await _with_trial(conn, k, before, d)
         await _save_adj(conn, after)
-        mark = {1: "🥶 холодно", -1: "🥵 жарко", 0: "🙂 нормально"}[d]
+        mark = {1: "🥶 холодно", -1: "🥵 жарко", 0: "🙂 нормально"}[d] + note
         if after["offset"] != before["offset"]:
             report.append(f"{key_label(k)}: {mark} → поправка {before['offset']:+g} → {after['offset']:+g} °C")
         else:
