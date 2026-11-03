@@ -41,6 +41,7 @@ ADMIN_TIME_SAT = os.environ.get("TOLIK_ADMIN_TIME_SAT", "18:15")
 
 HALL_NOM = {"white": "Сірий зал", "blue": "Синій зал", "purple": "Фіолетовий зал",
             "green": "Зелений зал", "pink": "Рожевий зал"}
+HALL_DOT = {"white": "⚪", "blue": "🔵", "purple": "🟣", "green": "🟢", "pink": "🌸"}
 NUM = ["1️⃣", "2️⃣", "3️⃣"]
 MAX_CLASSES_PER_MESSAGE = 3
 
@@ -94,7 +95,8 @@ def choreo_keyboard(classes: list, d: str, bset: int, chosen: dict) -> InlineKey
                 callback_data=f"tk:c:{g['id']}:{d}:{k}:{bset}"))
         rows.append(row)
         prefix = f"{i + 1} " if multi else ""
-        rows.append([InlineKeyboardButton(text=f"{prefix}🔄 Було в іншому залі",
+        hall = HALL_NOM.get(g["hall"], "цьому залі").replace("ий зал", "ому залі")
+        rows.append([InlineKeyboardButton(text=f"{prefix}🔄 Було не в {hall}",
                                           callback_data=f"tk:h:{g['id']}:{d}")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -131,14 +133,18 @@ async def classes_today(conn: aiosqlite.Connection, d: dt.date) -> dict:
     return out
 
 
+def hall_line(g) -> str:
+    return f"{HALL_DOT.get(g['hall'], '📍')} {HALL_NOM.get(g['hall'], g['hall'])}, {g['time']} — {g['style']}"
+
+
 def choreo_text(qi: int, classes: list) -> str:
     if len(classes) == 1:
         g = classes[0]
         place = f"{T.HALL_NAMES.get(g['hall'], 'залі')} о {g['time']}"
-        return T.CHOREO_QUESTIONS[qi].format(place=place) + "\n\n" + T.LEGEND
-    lines = [T.CHOREO_QUESTIONS[qi].format(place="залах"), ""]
+        return (f"{hall_line(g)}\n\n" + T.CHOREO_QUESTIONS[qi].format(place=place) + "\n\n" + T.LEGEND)
+    lines = [T.CHOREO_QUESTIONS[qi].format(place="залах"), "", "За розкладом:"]
     for i, g in enumerate(classes):
-        lines.append(f"{NUM[i]} {HALL_NOM.get(g['hall'], g['hall'])}, {g['time']} — {g['style']}")
+        lines.append(f"{NUM[i]} {hall_line(g)}")
     lines += ["", T.LEGEND]
     return "\n".join(lines)
 
