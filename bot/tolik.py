@@ -42,6 +42,7 @@ ADMIN_TIME_SAT = os.environ.get("TOLIK_ADMIN_TIME_SAT", "18:15")
 HALL_NOM = {"white": "Сірий зал", "blue": "Синій зал", "purple": "Фіолетовий зал",
             "green": "Зелений зал", "pink": "Рожевий зал"}
 HALL_DOT = {"white": "⚪", "blue": "🔵", "purple": "🟣", "green": "🟢", "pink": "🌸"}
+HALL_ORDER = ["white", "blue", "purple", "green", "pink"]
 NUM = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
 MAX_CLASSES_PER_MESSAGE = 5
 
@@ -81,8 +82,14 @@ async def push_to_sheet(row: dict) -> None:
 
 
 # ---------------- клавіатури ----------------
-def choreo_keyboard(classes: list, d: str, bset: int, chosen: dict) -> InlineKeyboardMarkup:
+def choreo_keyboard(classes: list, d: str, bset: int, chosen: dict, halls: Optional[dict] = None) -> InlineKeyboardMarkup:
+    """Під кожним заняттям: рядок 🥶/🙂/🥵 і рядок «у якому залі було» (5 кольорових кнопок, ✅ — де було).
+
+    6.11.2026 (власник): «додати хореографам питання, в якому залі відбувалось заняття сьогодні».
+    ✅ спочатку стоїть на залі за розкладом; одне натискання — інший зал.
+    """
     icons = T.BUTTON_SETS[bset % len(T.BUTTON_SETS)]
+    halls = halls or {}
     rows = []
     multi = len(classes) > 1
     for i, g in enumerate(classes):
@@ -94,10 +101,10 @@ def choreo_keyboard(classes: list, d: str, bset: int, chosen: dict) -> InlineKey
                 text=f"{mark}{prefix}{icons[k]}",
                 callback_data=f"tk:c:{g['id']}:{d}:{k}:{bset}"))
         rows.append(row)
-        prefix = f"{i + 1} " if multi else ""
-        hall = HALL_NOM.get(g["hall"], "цьому залі").replace("ий зал", "ому залі")
-        rows.append([InlineKeyboardButton(text=f"{prefix}🔄 Було не в {hall}",
-                                          callback_data=f"tk:h:{g['id']}:{d}")])
+        real = halls.get(g["id"]) or g["hall"]
+        rows.append([InlineKeyboardButton(
+            text=("✅" if h == real else "") + HALL_DOT[h],
+            callback_data=f"tk:hx:{g['id']}:{d}:{h}:{bset}") for h in HALL_ORDER])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -141,11 +148,12 @@ def choreo_text(qi: int, classes: list) -> str:
     if len(classes) == 1:
         g = classes[0]
         place = f"{T.HALL_NAMES.get(g['hall'], 'залі')} о {g['time']}"
-        return (f"{hall_line(g)}\n\n" + T.CHOREO_QUESTIONS[qi].format(place=place) + "\n\n" + T.LEGEND)
+        return (f"{hall_line(g)}\n\n" + T.CHOREO_QUESTIONS[qi].format(place=place) + "\n\n" + T.LEGEND
+                + "\n" + T.HALL_HINT)
     lines = [T.CHOREO_QUESTIONS[qi].format(place="залах"), "", "За розкладом:"]
     for i, g in enumerate(classes):
         lines.append(f"{NUM[i]} {hall_line(g)}")
-    lines += ["", T.LEGEND]
+    lines += ["", T.LEGEND, T.HALL_HINT]
     return "\n".join(lines)
 
 

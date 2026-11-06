@@ -10,7 +10,7 @@
   пошук межі (власник 4.11.2026): для стилю 2 дні поспіль «нормально» → пробуємо −0,5 °C (не нижче TRIAL_MIN);
   «холодно» одразу після такої проби → +0,5 назад, і ця межа для стилю запам'ятовується.
 Інтенсивні стилі (хореографія, хіп-хоп, джаз-фанк) стартують з −2 (= кондиціонер на час заняття вимкнено,
-поки ціль < 17 °C). Межі поправки: −6…+4.
+поки ціль < 17 °C). Межі поправки: −2…+4 (власник 6.11.2026; було −6).
 Home Assistant забирає план дня через GET /tolik/plan?key=… (див. run_web).
 """
 import datetime as dt
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 INTENSE = ("choreography", "hip hop", "jazz funk")
 START_INTENSE = -2.0
 STEP0 = 2.0
-OFF_MIN, OFF_MAX = -6.0, 4.0
+OFF_MIN, OFF_MAX = -2.0, 4.0  # 6.11.2026 (власник): «обмежимо до −2» (було −6)
 TRIAL_STEP, TRIAL_MIN, TRIAL_STREAK = 0.5, -2.0, 2
 DIR = {"cold": 1, "hot": -1, "normal": 0}
 ROOM_UA = {"reception": "рецепція", "dressing": "роздягалка"}
@@ -67,7 +67,9 @@ async def get_adj(conn: aiosqlite.Connection, key: str) -> dict:
     cur = await conn.execute("SELECT * FROM tolik_adjust WHERE key = ?", (key,))
     r = await cur.fetchone()
     if r:
-        return dict(r)
+        a = dict(r)
+        a["offset"] = max(OFF_MIN, min(OFF_MAX, a["offset"]))  # старі −6/−5 у базі → −2
+        return a
     start = START_INTENSE if key.startswith("style:") and is_intense(key[6:]) else 0.0
     return dict(key=key, offset=start, step=STEP0, last_dir=0, updated_at=None)
 

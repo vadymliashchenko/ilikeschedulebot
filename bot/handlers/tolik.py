@@ -34,6 +34,25 @@ async def _edit_safe(callback: CallbackQuery, **kw) -> None:
         pass  # «message is not modified» тощо — не критично
 
 
+async def _halls(conn: aiosqlite.Connection, survey_date: str, gids: list) -> dict:
+    """Зали, які хореограф позначив сам (gid → hall); решта — за розкладом."""
+    out = {}
+    for g in gids:
+        h = await tolik_db.get_state(conn, f"hall:{survey_date}:{g}")
+        if h:
+            out[g] = h
+    return out
+
+
+def _gids_from_markup(markup) -> list:
+    gids = []
+    for r in (markup.inline_keyboard if markup else []):
+        parts = r[0].callback_data.split(":")
+        if parts[1] == "c":
+            gids.append(int(parts[2]))
+    return gids
+
+
 # ================= хореографи =================
 @router.callback_query(F.data.startswith("tk:c:"))
 async def on_choreo_answer(callback: CallbackQuery, conn: aiosqlite.Connection) -> None:
@@ -76,9 +95,11 @@ async def on_choreo_answer(callback: CallbackQuery, conn: aiosqlite.Connection) 
         all_done = all(chosen.get(c["id"]) for c in classes)
         if all_done:
             text = callback.message.text + "\n\n" + T.CHOREO_REPLIES[k]
-            await _edit_safe(callback, text=text, reply_markup=tolik.choreo_keyboard(classes, d, bset, chosen))
+            halls = await _halls(conn, survey_date, gids)
+            await _edit_safe(callback, text=text, reply_markup=tolik.choreo_keyboard(classes, d, bset, chosen, halls))
         else:
-            await callback.message.edit_reply_markup(reply_markup=tolik.choreo_keyboard(classes, d, bset, chosen))
+            halls = await _halls(conn, survey_date, gids)
+            await callback.message.edit_reply_markup(reply_markup=tolik.choreo_keyboard(classes, d, bset, chosen, halls))
     except Exception:  # noqa: BLE001
         logger.exception("Tolik choreo callback failed")
         await callback.answer("Ой, щось пішло не так 🙈 Спробуйте ще раз", show_alert=True)
@@ -110,6 +131,46 @@ async def on_choreo_hall_set(callback: CallbackQuery, conn: aiosqlite.Connection
     await conn.commit()
     await callback.answer("Записав 👌")
     await _edit_safe(callback, text=f"✅ Записав: {tolik.HALL_NOM.get(hall, hall)}")
+
+
+@router.callback_query(F.data.startswith("tk:hx:"))
+async def on_choreo_hall_pick(callback: CallbackQuery, conn: aiosqlite.Connection) -> None:
+    """Рядок кольорових кнопок під заняттям: у якому залі було заняття (6.11.2026)."""
+    try:
+        _, _, gid_s, d, hall, bset_s = callback.data.split(":")
+        gid, bset = int(gid_s), int(bset_s)
+        group = await db.get_group(conn, gid)
+        if group is None:
+            await callback.answer("Заняття не знайдено 🙈", show_alert=True)
+            return
+        uid = callback.from_user.id
+        is_test = _is_owner(uid) and (tolik.OWNER_ONLY or (callback.message.text or "").startswith("🧪"))
+        if not is_test:
+            linked = await db.get_choreographer_by_telegram_id(conn, uid)
+            if linked != group["choreographer"]:
+                await callback.answer("Це питання для іншого хореографа 🙂", show_alert=True)
+                return
+        survey_date = tolik.s2d(d).isoformat()
+        await tolik_db.set_state(conn, f"hall:{survey_date}:{gid}", hall)
+        await conn.execute(
+            "UPDATE comfort_responses SET hall = ? WHERE survey_date = ? AND role = 'choreographer' AND group_id = ?",
+            (hall, survey_date, gid))
+        await conn.commit()
+        gids = _gids_from_markup(callback.message.reply_markup)
+        saved = await tolik_db.get_comfort_for(conn, survey_date, "choreographer", group["choreographer"], is_test)
+        inv = {v: kk for kk, v in T.ANSWER_KEYS.items()}
+        chosen = {r["group_id"]: inv.get(r["answer"]) for r in saved}
+        classes = [c for c in [await db.get_group(conn, g) for g in gids] if c is not None]
+        halls = await _halls(conn, survey_date, gids)
+        await callback.answer(f"Записав: {tolik.HALL_NOM.get(hall, hall)} 👌")
+        try:
+            await callback.message.edit_reply_markup(
+                reply_markup=tolik.choreo_keyboard(classes, d, bset, chosen, halls))
+        except TelegramAPIError:
+            pass
+    except Exception:  # noqa: BLE001
+        logger.exception("Tolik hall pick failed")
+        await callback.answer("Ой, щось пішло не так 🙈 Спробуйте ще раз", show_alert=True)
 
 
 # ================= феї-адміністратори =================
