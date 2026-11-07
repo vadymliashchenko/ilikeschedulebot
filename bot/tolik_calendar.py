@@ -28,6 +28,26 @@ ALIASES = {
 }
 CAL_HALL = {"grey": "white", "white": "white", "blue": "blue", "green": "green", "pink": "pink", "purple": "purple"}
 SKIP_WORDS = ("інд", "для себе", "оренд")
+# 7.11.2026 (власник): опитувати тих, хто проводив індиви або займався «для себе» на 3 поверсі
+PERSONAL_HALLS = ("white", "blue")
+PERSONAL_STYLES = ("Індивідуальне", "Для себе")
+PERSONAL_ALIASES = {
+    "поліна": "Відар Поліна",
+    "вікуля": "Сковира Віка",
+    "віка": "Сковира Віка",
+    "остап": "Федишин Остап",
+    "женя": "Мурачева Женя",
+    "нетлюх": "Нетлюх Юля",
+    "юля н": "Нетлюх Юля",
+    "ліля": "Нікітченко Ліля",
+    "лера": "Ярцева Лера",
+    "аня": "Мисько Аня",
+    "саша": "Скороділкін Саша",
+    "богдан": "Медвідь Богдан",
+    "діма": "Кулик Дмитро",
+    "дмитро": "Кулик Дмитро",
+}
+PERSONAL_SKIP_PEOPLE = ("настя",)  # адміністратори, опитування їм не йде
 
 
 def classify(title: str) -> Optional[str]:
@@ -43,11 +63,23 @@ def classify(title: str) -> Optional[str]:
     return None
 
 
-def resolve_choreographer(title: str) -> Optional[str]:
+def classify_personal(title: str, individual: bool = False) -> Optional[str]:
+    t = (title or "").lower()
+    if "оренд" in t or re.search(r"\bбез\s", t):
+        return None
+    if "для себе" in t:
+        return "Для себе"
+    if "інд" in t or individual:
+        return "Індивідуальне"
+    return None
+
+
+def resolve_choreographer(title: str, personal: bool = False) -> Optional[str]:
     words = re.findall(r"[а-яіїєґa-z']+", (title or "").lower())
-    if len(words) >= 2 and f"{words[0]} {words[1][:1]}" in ALIASES:
-        return ALIASES[f"{words[0]} {words[1][:1]}"]
-    return ALIASES.get(words[0]) if words else None
+    aliases = {**ALIASES, **PERSONAL_ALIASES} if personal else ALIASES
+    if len(words) >= 2 and f"{words[0]} {words[1][:1]}" in aliases:
+        return aliases[f"{words[0]} {words[1][:1]}"]
+    return aliases.get(words[0]) if words else None
 
 
 async def save_extra(conn: aiosqlite.Connection, date: str, events: list) -> int:
@@ -69,19 +101,30 @@ async def _group_id(conn, choreographer: str, style: str, time: str, hall: str) 
     return cur.lastrowid
 
 
-async def extra_classes(conn: aiosqlite.Connection, d: dt.date) -> tuple[dict, list]:
-    """({хореограф: [groups rows]}, [назви, для яких не знайшли хореографа])."""
+async def extra_classes(conn: aiosqlite.Connection, d: dt.date,
+                        groups: bool = True, personal: bool = False) -> tuple[dict, list]:
+    """({хореограф: [groups rows]}, [назви, для яких не знайшли хореографа]).
+
+    groups — команди/закриті/відпрацювання; personal — індиви і «для себе» на 3 поверсі (лише для опитування).
+    """
     raw = await tolik_db.get_state(conn, f"extra:{d.isoformat()}")
     if not raw:
         return {}, []
     out: dict = {}
     unknown = []
     for e in json.loads(raw):
-        style = classify(e.get("title", ""))
+        title = e.get("title", "")
+        hall = CAL_HALL.get(e.get("hall"))
+        style = classify(title) if groups else None
+        is_personal = False
+        if not style and personal and hall in PERSONAL_HALLS:
+            style = classify_personal(title, bool(e.get("individual")))
+            is_personal = bool(style)
         if not style:
             continue
-        name = resolve_choreographer(e["title"])
-        hall = CAL_HALL.get(e.get("hall"))
+        if is_personal and title.lower().startswith(PERSONAL_SKIP_PEOPLE):
+            continue
+        name = resolve_choreographer(title, personal=is_personal)
         time = (e.get("start") or "")[:5]
         if not name or not hall or not time:
             unknown.append(e.get("title", "?"))

@@ -162,9 +162,10 @@ async def job_choreo(bot: Bot, conn: aiosqlite.Connection, force_test: bool = Fa
         return 0
     test = force_test or OWNER_ONLY
     d = today()
-    by_choreo = await classes_today(conn, d)
+    sunday = d.weekday() == 6  # у НД — лише індиви і «для себе» (власник 7.11.2026)
+    by_choreo = {} if sunday else await classes_today(conn, d)
     from bot import tolik_calendar
-    extra, unknown = await tolik_calendar.extra_classes(conn, d)
+    extra, unknown = await tolik_calendar.extra_classes(conn, d, groups=not sunday, personal=True)
     for name, gs in extra.items():
         have = {(g["time"], g["hall"]) for g in by_choreo.get(name, [])}
         by_choreo.setdefault(name, []).extend(g for g in gs if (g["time"], g["hall"]) not in have)
@@ -264,8 +265,8 @@ async def job_catch_up(bot: Bot, conn: aiosqlite.Connection) -> None:
     now = dt.datetime.now(config.TZ)
     d, hm = now.date(), now.strftime("%H:%M")
     wd = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"][d.weekday()]
-    plans = [("choreo", CHOREO_TIME_SAT if wd == "sat" else CHOREO_TIME,
-              wd == "sat" or wd in CHOREO_DAYS.split(","), job_choreo),
+    plans = [("choreo", CHOREO_TIME_SAT if wd in ("sat", "sun") else CHOREO_TIME,
+              wd in ("sat", "sun") or wd in CHOREO_DAYS.split(","), job_choreo),
              ("admin", ADMIN_TIME_SAT if wd == "sat" else ADMIN_TIME,
               wd == "sat" or wd in ADMIN_DAYS.split(","), job_admin)]
     for kind, at, day_ok, job in plans:
@@ -281,7 +282,7 @@ def add_jobs(scheduler: AsyncIOScheduler, bot: Bot, conn: aiosqlite.Connection) 
     scheduler.add_job(_safe(job_choreo), CronTrigger(day_of_week=CHOREO_DAYS, hour=ch_h, minute=ch_m, timezone=config.TZ),
                       args=(bot, conn), id="tolik_choreo", replace_existing=True, misfire_grace_time=1800)
     cs_h, cs_m = CHOREO_TIME_SAT.split(":")
-    scheduler.add_job(_safe(job_choreo), CronTrigger(day_of_week="sat", hour=cs_h, minute=cs_m, timezone=config.TZ),
+    scheduler.add_job(_safe(job_choreo), CronTrigger(day_of_week="sat,sun", hour=cs_h, minute=cs_m, timezone=config.TZ),
                       args=(bot, conn), id="tolik_choreo_sat", replace_existing=True, misfire_grace_time=1800)
     scheduler.add_job(_safe(job_admin), CronTrigger(day_of_week=ADMIN_DAYS, hour=ad_h, minute=ad_m, timezone=config.TZ),
                       args=(bot, conn), id="tolik_admin", replace_existing=True, misfire_grace_time=1800)

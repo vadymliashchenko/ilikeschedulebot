@@ -26,6 +26,7 @@ from aiogram import Bot
 from aiohttp import web
 
 from bot import config, db, tolik_db
+from bot.tolik_calendar import PERSONAL_STYLES
 
 logger = logging.getLogger(__name__)
 
@@ -130,8 +131,8 @@ async def process_new_answers(conn: aiosqlite.Connection) -> list[str]:
     votes: dict = {}
     for r in rows:
         if r["role"] == "choreographer":
-            if not r["style"]:
-                continue
+            if not r["style"] or r["style"] in PERSONAL_STYLES:
+                continue  # індиви лише збираємо, на поправки стилів вони не впливають
             k = style_key(r["style"])
         else:
             if not r["floor"] or r["room"] not in ROOM_UA:
