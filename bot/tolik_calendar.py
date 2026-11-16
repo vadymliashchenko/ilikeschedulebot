@@ -25,6 +25,7 @@ ALIASES = {
     "катя": "Умрихін Катя",
     "надя": "Горудько Надя",
     "юля к": "Копитко Юля",
+    "марго": "Шевцова Марго",  # з 16.11.2026: Пн/Чт 20:00 High Heels, Вт/Пт 20:00 Jazz Funk
 }
 CAL_HALL = {"grey": "white", "white": "white", "blue": "blue", "green": "green", "pink": "pink", "purple": "purple"}
 SKIP_WORDS = ("інд", "для себе", "оренд")
