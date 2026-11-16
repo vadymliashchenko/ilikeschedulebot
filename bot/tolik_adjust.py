@@ -64,6 +64,32 @@ def key_label(key: str) -> str:
     return f"{floor} пов. — {ROOM_UA.get(room, room)}"
 
 
+HALL_SHORT = {"white": "Сірий", "blue": "Синій", "purple": "Фіолетовий", "green": "Зелений", "pink": "Рожевий"}
+ANSWER_EMOJI = {"cold": "🥶", "normal": "🙂", "hot": "🥵"}
+WEEKDAYS_UA = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "НД"]
+
+
+def day_label(survey_date: str) -> str:
+    """«ЧТ 12.11» — день заняття, за який голосували."""
+    try:
+        d = dt.date.fromisoformat(str(survey_date)[:10])
+        return f"{WEEKDAYS_UA[d.weekday()]} {d:%d.%m}"
+    except ValueError:
+        return str(survey_date)
+
+
+def answer_detail(r) -> str:
+    """Рядок однієї відповіді для звіту власнику (16.11.2026, власник: «щоб було видно годину заняття»).
+    Хореограф: «19:00 Синій — Острянко 🥵»; фея: «Настя 🥶»."""
+    emoji = ANSWER_EMOJI.get(r["answer"], "")
+    person = (r["person"] or "").strip()
+    if r["role"] == "choreographer":
+        time = (r["class_time"] or "").strip() or "—"
+        hall = HALL_SHORT.get(r["hall"] or "", r["hall"] or "")
+        return f"{time} {hall} — {person} {emoji}".strip()
+    return f"{person} {emoji}".strip()
+
+
 async def get_adj(conn: aiosqlite.Connection, key: str) -> dict:
     cur = await conn.execute("SELECT * FROM tolik_adjust WHERE key = ?", (key,))
     r = await cur.fetchone()
@@ -129,6 +155,7 @@ async def process_new_answers(conn: aiosqlite.Connection) -> list[str]:
     if not rows:
         return []
     votes: dict = {}
+    details: dict = {}
     for r in rows:
         if r["role"] == "choreographer":
             if not r["style"] or r["style"] in PERSONAL_STYLES:
@@ -139,6 +166,7 @@ async def process_new_answers(conn: aiosqlite.Connection) -> list[str]:
                 continue
             k = room_key(r["floor"], r["room"])
         votes.setdefault((k, r["survey_date"]), []).append(DIR.get(r["answer"], 0))
+        details.setdefault((k, r["survey_date"]), []).append(answer_detail(r))
     report = []
     for (k, day) in sorted(votes, key=lambda x: (x[1], x[0])):
         s = sum(votes[(k, day)])
@@ -147,10 +175,12 @@ async def process_new_answers(conn: aiosqlite.Connection) -> list[str]:
         after, note = await _with_trial(conn, k, before, d)
         await _save_adj(conn, after)
         mark = {1: "🥶 холодно", -1: "🥵 жарко", 0: "🙂 нормально"}[d] + note
+        det = "; ".join(sorted(details.get((k, day), [])))
+        head = f"{key_label(k)} ({day_label(day)})" + (f"\n   {det}" if det else "")
         if after["offset"] != before["offset"]:
-            report.append(f"{key_label(k)}: {mark} → поправка {before['offset']:+g} → {after['offset']:+g} °C")
+            report.append(f"{head}\n   разом: {mark} → поправка {before['offset']:+g} → {after['offset']:+g} °C")
         else:
-            report.append(f"{key_label(k)}: {mark} → без змін ({after['offset']:+g} °C)")
+            report.append(f"{head}\n   разом: {mark} → без змін ({after['offset']:+g} °C)")
     await conn.commit()
     await tolik_db.set_state(conn, "adjust_last_id", str(max(r["id"] for r in rows)))
     return report
